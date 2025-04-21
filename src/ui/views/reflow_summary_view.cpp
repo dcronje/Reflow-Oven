@@ -25,13 +25,11 @@ void ReflowSummaryView::render(DisplaySSD1331_96x64x8_SPI& display) {
 }
 
 void ReflowSummaryView::handleEncoderPress() {
-    // Return to main menu
-    UIViewService::getInstance().showView("main-menu");
+    ReflowController::getInstance().returnToMainMenu();
 }
 
 void ReflowSummaryView::handleEncoderLongPress() {
-    // Return to main menu
-    UIViewService::getInstance().showView("main-menu");
+    ReflowController::getInstance().returnToMainMenu();
 }
 
 void ReflowSummaryView::handleEncoderUp() {

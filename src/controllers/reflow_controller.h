@@ -2,6 +2,7 @@
 
 #include "base_controller.h"
 #include "models/reflow_model.h"
+#include "services/ui_view_service.h"
 
 enum class ReflowState {
     PRECHECK,
@@ -17,13 +18,14 @@ public:
     void registerViews(UIViewService& viewService) override;
     void start() override;
     void stop() override;
+    void returnToMainMenu();
 
     void requestStart();          // Called by UI when user selects reflow
     void confirmStart();          // Called by UI when user presses "start" (after precheck)
     void cancel();
 
     ReflowModel& getModel();
-    ReflowState getState() const;
+    const ReflowState& getState() const;
     float getElapsedMsInStep() const;
     float getCurrentTargetTemp() const;
 

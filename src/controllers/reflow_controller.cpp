@@ -59,11 +59,15 @@ void ReflowController::stop() {
     UIViewService::getInstance().showView("reflow-summary");
 }
 
+void ReflowController::returnToMainMenu() {
+    UIViewService::getInstance().showView("main-menu");
+}
+
 ReflowModel& ReflowController::getModel() {
     return model;
 }
 
-ReflowState ReflowController::getState() const {
+const ReflowState& ReflowController::getState() const {
     return state;
 }
 

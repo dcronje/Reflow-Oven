@@ -3,7 +3,7 @@
 #include "ui_view.h"
 #include "types/display.h"
 
-class CalibrationSummaryView : public UIView {
+class SensorPrecheckView : public UIView {
 public:
     void init() override;
     void render(DisplaySSD1331_96x64x8_SPI& display) override;
@@ -14,16 +14,9 @@ public:
     void handleEncoderLongPress() override;
 
 private:
-    enum class DisplayMode {
-        HEATING,
-        COOLING
-    };
-
-    void drawBarGraph(const float* rates, uint8_t color);
-    void drawSelectedBarInfo(int power, float rate);
+    bool checkTemperatureDifference() const;
+    void drawTemperatureInfo(float frontTemp, float backTemp, float ambientTemp);
 
     NanoCanvas8 canvas = NanoCanvas8(96, 64, buffer);
     uint8_t buffer[96 * 64];
-    DisplayMode currentMode = DisplayMode::HEATING;
-    int selectedBar = 0;  // 0-9 for 10% to 100%
 }; 

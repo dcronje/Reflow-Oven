@@ -34,5 +34,5 @@ void ReflowCurveSelectionView::handleEncoderPress() {
 }
 
 void ReflowCurveSelectionView::handleEncoderLongPress() {
-    UIViewService::getInstance().showView("main-menu");
+    ReflowController::getInstance().returnToMainMenu();
 }
