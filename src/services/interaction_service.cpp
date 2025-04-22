@@ -28,13 +28,10 @@ void InteractionService::init(UIViewService* ui) {
     gpio_init(ENCODER_DC_GPIO);
     gpio_set_dir(ENCODER_CLK_GPIO, GPIO_IN);
     gpio_set_dir(ENCODER_DC_GPIO, GPIO_IN);
-    gpio_pull_up(ENCODER_CLK_GPIO);
-    gpio_pull_up(ENCODER_DC_GPIO);
 
     // Button pin setup
     gpio_init(ENCODER_SW_GPIO);
     gpio_set_dir(ENCODER_SW_GPIO, GPIO_IN);
-    gpio_pull_up(ENCODER_SW_GPIO);
 
     gpio_set_irq_enabled(ENCODER_CLK_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
     gpio_set_irq_enabled(ENCODER_DC_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);

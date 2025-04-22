@@ -39,6 +39,21 @@ void CalibrationService::startThermalCalibration() {
     state.hasError = false;
 }
 
+void CalibrationService::startDoorCalibration() {
+    if (currentMode != Mode::NONE) {
+        displayError("Calibration already in progress");
+        return;
+    }
+
+    currentMode = Mode::DOOR;
+    state.phase = CalibrationPhase::DOOR_CALIBRATION;
+    state.progress = 0.0f;
+    state.hasError = false;
+    state.errorMessage = nullptr;
+
+    xTaskCreate(calibrationTaskWrapper, "Calibration", 2048, this, 2, &taskHandle);
+}
+
 void CalibrationService::stopCalibration() {
     currentMode = Mode::NONE;
     state.phase = CalibrationPhase::IDLE;
@@ -86,6 +101,10 @@ void CalibrationService::calibrationTask() {
                 break;
             case Mode::THERMAL:
                 runThermalCalibration();
+                currentMode = Mode::NONE;
+                break;
+            case Mode::DOOR:
+                runDoorCalibration();
                 currentMode = Mode::NONE;
                 break;
             case Mode::NONE:
@@ -160,6 +179,15 @@ bool CalibrationService::runThermalCalibration() {
     return saveCalibrationData();
 }
 
+bool CalibrationService::runDoorCalibration() {
+    // Door calibration is interactive and controlled by the UI
+    // This task just monitors for completion
+    while (currentMode == Mode::DOOR) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    return true;
+}
+
 bool CalibrationService::saveCalibrationData() {
     uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(CALIBRATION_FLASH_OFFSET, FLASH_SECTOR_SIZE);
@@ -187,4 +215,38 @@ void CalibrationService::displayError(const char* message) {
     state.phase = CalibrationPhase::ERROR;
     state.hasError = true;
     state.errorMessage = message;
+}
+
+void CalibrationService::setDoorOpenPosition(float position) {
+    if (currentMode != Mode::DOOR) {
+        displayError("Door calibration not in progress");
+        return;
+    }
+
+    data.doorCalibration.openPosition = position;
+    updateProgress("Setting open position", 0.5f, 0.0f, 0);
+}
+
+void CalibrationService::setDoorClosedPosition(float position) {
+    if (currentMode != Mode::DOOR) {
+        displayError("Door calibration not in progress");
+        return;
+    }
+
+    data.doorCalibration.closedPosition = position;
+    data.doorCalibration.isCalibrated = true;
+    updateProgress("Setting closed position", 1.0f, 0.0f, 0);
+    stopCalibration();
+}
+
+bool CalibrationService::isDoorCalibrated() const {
+    return data.doorCalibration.isCalibrated;
+}
+
+float CalibrationService::getDoorOpenPosition() const {
+    return data.doorCalibration.openPosition;
+}
+
+float CalibrationService::getDoorClosedPosition() const {
+    return data.doorCalibration.closedPosition;
 }

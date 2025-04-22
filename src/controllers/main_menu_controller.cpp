@@ -1,6 +1,8 @@
 #include "main_menu_controller.h"
 #include "ui/views/main_menu_view.h"
 #include "ui/views/reflow_curve_selection_view.h"
+#include "services/ui_view_service.h"
+#include "services/door_service.h"
 
 MainMenuController& MainMenuController::getInstance() {
     static MainMenuController instance;
@@ -26,4 +28,12 @@ void MainMenuController::calibrate() {
 
 void MainMenuController::openSettings() {
     // TODO: Show settings view
+}
+
+void MainMenuController::toggleDoor() {
+    if (DoorService::getInstance().isFullyOpen()) {
+        DoorService::getInstance().setPosition(0); // Close door
+    } else {
+        DoorService::getInstance().setPosition(100); // Open door
+    }
 }

@@ -27,8 +27,8 @@ const int THERMOCOUPLE_SPI_CLK_GPIO = 10; // SPI clock (SCK) – GPIO 10
 const int THERMOCOUPLE_SPI_MISO_GPIO = 12; // SPI MISO – GPIO 12
 
 // Heater control pins (SSR controlled)
-const int HEATER_FRONT_SSR_GPIO = 2; // GPIO pin for the front element SSR
-const int HEATER_BACK_SSR_GPIO = 3; // GPIO pin for the back element SSR
+const int HEATER_FRONT_SSR_GPIO = 19; // GPIO pin for the front element SSR
+const int HEATER_BACK_SSR_GPIO = 20; // GPIO pin for the back element SSR
 
 // Ventilation pins
 const int VENT_RIGHT_SERVO_GPIO = 4; // GPIO pin for the right vent servo
@@ -78,3 +78,9 @@ const int DOOR_SWITCH_GPIO = 8;  // Door safety switch
 #define SETTINGS_MAGIC 0xDEADBEEF
 #define FLASH_TARGET_OFFSET 0x100000
 #define CALIBRATION_FLASH_OFFSET 0x100000  // Adjust based on your flash layout
+
+// Door control
+#define SERVO_POWER_GPIO 2      // MOSFET control for servo power
+#define DOOR_OPEN_SWITCH_GPIO 3 // Door open limit switch
+#define DOOR_CLOSED_SWITCH_GPIO 4 // Door closed limit switch
+#define DOOR_SERVO_GPIO 5       // Servo PWM signal

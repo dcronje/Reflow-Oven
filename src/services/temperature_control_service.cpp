@@ -1,4 +1,5 @@
 #include "services/temperature_control_service.h"
+#include "services/door_service.h"
 #include "constants.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
@@ -16,12 +17,12 @@ TemperatureControlService::TemperatureControlService()
     : targetTemp(0.0f), frontTemp(0.0f), backTemp(0.0f),
       frontHeaterPower(0), backHeaterPower(0), coolingPower(0),
       lastCoolingChangeTime(0),
-      topLeftVentSm(0), topRightVentSm(0), bottomLeftVentSm(0), bottomRightVentSm(0),
       taskHandle(nullptr) {
     state = {};
 }
 
 void TemperatureControlService::init() {
+    // Initialize heaters
     gpio_init(HEATER_FRONT_SSR_GPIO);
     gpio_set_dir(HEATER_FRONT_SSR_GPIO, GPIO_OUT);
     gpio_put(HEATER_FRONT_SSR_GPIO, 0);
@@ -30,32 +31,8 @@ void TemperatureControlService::init() {
     gpio_set_dir(HEATER_BACK_SSR_GPIO, GPIO_OUT);
     gpio_put(HEATER_BACK_SSR_GPIO, 0);
 
-    gpio_set_function(FAN_CONTROL_GPIO, GPIO_FUNC_PWM);
-    uint slice = pwm_gpio_to_slice_num(FAN_CONTROL_GPIO);
-    pwm_set_wrap(slice, 65535);
-    pwm_set_enabled(slice, true);
-
-    PIO pio = pio0;
-    uint offset = pio_add_program(pio, &servo_program);
-
-    topLeftVentSm = pio_claim_unused_sm(pio, true);
-    topRightVentSm = pio_claim_unused_sm(pio, true);
-    bottomLeftVentSm = pio_claim_unused_sm(pio, true);
-    bottomRightVentSm = pio_claim_unused_sm(pio, true);
-
-    initServoSm(pio, topLeftVentSm, offset, 64.0f, TOP_LEFT_VENT_SERVO_GPIO, SERVO_PERIOD_TICKS);
-    initServoSm(pio, topRightVentSm, offset, 64.0f, TOP_RIGHT_VENT_SERVO_GPIO, SERVO_PERIOD_TICKS);
-    initServoSm(pio, bottomLeftVentSm, offset, 64.0f, BOTTOM_LEFT_VENT_SERVO_GPIO, SERVO_PERIOD_TICKS);
-    initServoSm(pio, bottomRightVentSm, offset, 64.0f, BOTTOM_RIGHT_VENT_SERVO_GPIO, SERVO_PERIOD_TICKS);
-
-    pio_sm_set_enabled(pio, topLeftVentSm, true);
-    pio_sm_set_enabled(pio, topRightVentSm, true);
-    pio_sm_set_enabled(pio, bottomLeftVentSm, true);
-    pio_sm_set_enabled(pio, bottomRightVentSm, true);
-
-    setTopVentsAngle(0);
-    setBottomVentsAngle(0);
-    setFanSpeed(0);
+    // Initialize to closed position
+    setDoorPosition(0);
 }
 
 void TemperatureControlService::start() {
@@ -143,43 +120,19 @@ void TemperatureControlService::setCoolingPower(uint8_t power) {
     state.isCooling = (power > 0);
     lastCoolingChangeTime = now;
 
-    if (power == 0) {
-        setTopVentsAngle(0);
-        setBottomVentsAngle(0);
-        setFanSpeed(0);
-        return;
-    }
-
-    if (power <= 40) {
-        int angle = (power * 100) / 40;
-        setTopVentsAngle(angle);
-        setBottomVentsAngle(0);
-        setFanSpeed(0);
-    } else {
-        setTopVentsAngle(100);
-        int bottomAngle = std::min((power - 40) * 100 / 10, 100);
-        setBottomVentsAngle(bottomAngle);
-        int fanPower = std::max((power - 50) * 100 / 50, 0);
-        fanPower = std::min(fanPower, 100);
-        setFanSpeed(fanPower);
-    }
+    setDoorPosition(power);
 }
 
-void TemperatureControlService::setTopVentsAngle(uint8_t percent) {
-    uint pulse = SERVO_MIN_PULSE + ((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * percent) / 100;
-    pio_sm_put_blocking(pio0, topLeftVentSm, pulse);
-    pio_sm_put_blocking(pio0, topRightVentSm, pulse);
+void TemperatureControlService::setDoorPosition(uint8_t percent) {
+    DoorService::getInstance().setPosition(percent);
 }
 
-void TemperatureControlService::setBottomVentsAngle(uint8_t percent) {
-    uint pulse = SERVO_MIN_PULSE + ((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * percent) / 100;
-    pio_sm_put_blocking(pio0, bottomLeftVentSm, pulse);
-    pio_sm_put_blocking(pio0, bottomRightVentSm, pulse);
+bool TemperatureControlService::isDoorFullyOpen() const {
+    return DoorService::getInstance().isFullyOpen();
 }
 
-void TemperatureControlService::setFanSpeed(uint8_t percent) {
-    uint16_t level = (65535 * std::clamp<uint8_t>(percent, 0, 100)) / 100;
-    pwm_set_gpio_level(FAN_CONTROL_GPIO, level);
+bool TemperatureControlService::isDoorFullyClosed() const {
+    return DoorService::getInstance().isFullyClosed();
 }
 
 void TemperatureControlService::setTargetTemperature(float temp) {
@@ -206,24 +159,11 @@ uint8_t TemperatureControlService::getCoolingPower() const {
     return coolingPower;
 }
 
-uint16_t TemperatureControlService::getFanRPM() const {
-    return state.fanRPM;
-}
-
-bool TemperatureControlService::isFanRunning() const {
-    return state.fanRPM > 0;
-}
-
 TemperatureState TemperatureControlService::getState() const {
     return state;
 }
 
-void TemperatureControlService::initServoSm(PIO pio, uint sm, uint offset, float clkDiv, uint pin, uint32_t periodTicks) {
-    pio_gpio_init(pio, pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
-    pio_sm_exec(pio, sm, pio_encode_set(pio_isr, periodTicks));
-    pio_sm_config c = servo_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&c, pin);
-    sm_config_set_clkdiv(&c, clkDiv);
-    pio_sm_init(pio, sm, offset, &c);
+float TemperatureControlService::applyCalibration(float rawTemp, size_t thermocoupleIndex) {
+    // TODO: Implement temperature calibration
+    return rawTemp;
 }

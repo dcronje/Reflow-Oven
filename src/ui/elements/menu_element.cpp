@@ -74,3 +74,9 @@ void MenuElement::render(NanoCanvas8& canvas) {
         }
     }
 }
+
+void MenuElement::updateItemLabel(int index, const std::string& newLabel) {
+    if (index >= 0 && index < items.size()) {
+        items[index].setLabel(newLabel);
+    }
+}

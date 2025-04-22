@@ -13,6 +13,7 @@ public:
     void init();
     void startSensorCalibration();
     void startThermalCalibration();
+    void startDoorCalibration();
     void stopCalibration();
 
     bool isCalibrated() const;
@@ -22,6 +23,13 @@ public:
     float getExpectedHeatingRate(float powerPercent) const;
     float getExpectedCoolingRate(float fanPercent) const;
 
+    // Door calibration methods
+    void setDoorOpenPosition(float position);
+    void setDoorClosedPosition(float position);
+    bool isDoorCalibrated() const;
+    float getDoorOpenPosition() const;
+    float getDoorClosedPosition() const;
+
 private:
     CalibrationService();
 
@@ -30,6 +38,7 @@ private:
 
     bool runSensorCalibration();
     bool runThermalCalibration();
+    bool runDoorCalibration();
     bool saveCalibrationData();
     bool loadCalibrationData();
 
@@ -50,7 +59,8 @@ private:
     enum class Mode {
         NONE,
         SENSOR,
-        THERMAL
+        THERMAL,
+        DOOR
     } currentMode;
 
     absolute_time_t calibrationStartTime;

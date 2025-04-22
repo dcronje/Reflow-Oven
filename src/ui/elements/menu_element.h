@@ -8,6 +8,7 @@ class MenuElement : public UIElement {
 public:
     void addItem(const MenuItemElement& item);
     void clearItems();
+    void updateItemLabel(int index, const std::string& newLabel);
 
     void moveUp();
     void moveDown();

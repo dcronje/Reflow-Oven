@@ -17,6 +17,7 @@ public:
 
     void startSensorCalibration();
     void startThermalCalibration();
+    void startDoorCalibration();
     void stopCalibration();
 
     bool isCalibrated() const;
@@ -32,6 +33,16 @@ public:
     void returnToMainMenu();
     void returnToCalibrationMenu();
     bool checkTemperatureDifference() const;
+
+    // Door calibration methods
+    void setDoorOpenPosition(float position);
+    void setDoorClosedPosition(float position);
+    bool isDoorCalibrated() const;
+    float getDoorOpenPosition() const;
+    float getDoorClosedPosition() const;
+    float getDoorCurrentPosition() const;
+    void moveDoorUp();
+    void moveDoorDown();
 
 private:
     CalibrationController();

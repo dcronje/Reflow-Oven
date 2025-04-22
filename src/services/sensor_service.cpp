@@ -20,8 +20,6 @@ void SensorService::init() {
     i2c_init(AMBIENT_TEMP_I2C_PORT, AMBIENT_TEMP_I2C_BAUDRATE);
     gpio_set_function(AMBIENT_TEMP_I2C_SDA_GPIO, GPIO_FUNC_I2C);
     gpio_set_function(AMBIENT_TEMP_I2C_SCL_GPIO, GPIO_FUNC_I2C);
-    gpio_pull_up(AMBIENT_TEMP_I2C_SDA_GPIO);
-    gpio_pull_up(AMBIENT_TEMP_I2C_SCL_GPIO);
 
     // Init SPI chip selects
     gpio_init(THERMOCOUPLE_FRONT_CS_GPIO);

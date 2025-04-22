@@ -21,6 +21,12 @@ void CalibrationMenuView::init() {
     { .backgroundColor = BLACK, .textColor = WHITE },
     { .backgroundColor = GREEN, .textColor = BLACK }));
 
+    menu.addItem(MenuItemElement("Door Calibration", [] {
+        CalibrationController::getInstance().startDoorCalibration();
+    }, std::nullopt,
+    { .backgroundColor = BLACK, .textColor = WHITE },
+    { .backgroundColor = GREEN, .textColor = BLACK }));
+
     menu.addItem(MenuItemElement("View Summary", [] {
         CalibrationController::getInstance().viewCalibrationSummary();
     }, std::nullopt,

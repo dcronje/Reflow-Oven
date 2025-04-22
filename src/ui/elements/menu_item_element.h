@@ -29,4 +29,8 @@ struct MenuItemElement {
         iconChar(iconChar),
         normalStyle(normalStyle),
         highlightStyle(highlightStyle) {}
+
+    void setLabel(const std::string& newLabel) {
+        label = newLabel;
+    }
 };

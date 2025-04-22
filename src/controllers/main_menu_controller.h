@@ -12,6 +12,7 @@ public:
     void startReflow();
     void calibrate();
     void openSettings();
+    void toggleDoor();
 
 private:
     MainMenuController() = default;
