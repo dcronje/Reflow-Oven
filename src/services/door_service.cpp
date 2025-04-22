@@ -1,5 +1,6 @@
 #include "services/door_service.h"
 #include "constants.h"
+#include "globals.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
@@ -156,11 +157,11 @@ void DoorService::setServoAngle(uint8_t angle) {
 }
 
 bool DoorService::isFullyOpen() const {
-    return !gpio_get(DOOR_OPEN_SENSOR_GPIO);
+    return !gpio_get(DOOR_SWITCH_GPIO);
 }
 
 bool DoorService::isFullyClosed() const {
-    return !gpio_get(DOOR_CLOSED_SENSOR_GPIO);
+    return !gpio_get(DOOR_CLOSED_SWITCH_GPIO);
 }
 
 void DoorService::initServoSm(PIO pio, uint sm, uint offset, float clkDiv, uint pin, uint32_t periodTicks) {
