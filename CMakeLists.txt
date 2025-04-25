@@ -35,6 +35,7 @@ project(Reflow-Oven C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/onewire)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/lcdgfx)
 
 # Add executable. Default name is the project name, version 0.1
@@ -85,6 +86,7 @@ target_link_libraries(Reflow-Oven
         hardware_pwm
         hardware_flash
         FreeRTOS-Kernel-Heap4
+        pico_one_wire
         lcdgfx
         )
 

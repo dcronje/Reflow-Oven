@@ -14,8 +14,7 @@ class InteractionService {
 public:
     static InteractionService& getInstance();
 
-    void init(UIViewService* ui);
-    void start();
+    void init();
     void gpioISR(uint gpio, uint32_t events);  // Called by sharedISR
 
 private:

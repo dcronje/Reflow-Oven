@@ -19,9 +19,7 @@ UIViewService::UIViewService()
 void UIViewService::init() {
     display.begin();
     display.clear();
-}
 
-void UIViewService::start() {
     xTaskCreate(renderTaskEntry, "UIViewTask", 1024, this, tskIDLE_PRIORITY + 1, &renderTask);
 }
 

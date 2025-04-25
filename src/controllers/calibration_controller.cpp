@@ -22,13 +22,13 @@ CalibrationController::CalibrationController() {
 }
 
 void CalibrationController::init() {
-    CalibrationService::getInstance().init();
-    UIViewService::getInstance().registerView("calibration-summary", std::make_unique<CalibrationSummaryView>());
-    UIViewService::getInstance().registerView("calibration-menu", std::make_unique<CalibrationMenuView>());
-    UIViewService::getInstance().registerView("thermal-calibration", std::make_unique<ThermalCalibrationView>());
-    UIViewService::getInstance().registerView("sensor-calibration", std::make_unique<SensorCalibrationView>());
-    UIViewService::getInstance().registerView("sensor-precheck", std::make_unique<SensorPrecheckView>());
-    UIViewService::getInstance().registerView("door-calibration", std::make_unique<DoorCalibrationView>());
+    auto& ui = UIViewService::getInstance();
+    ui.registerView("calibration-summary", std::make_unique<CalibrationSummaryView>());
+    ui.registerView("calibration-menu", std::make_unique<CalibrationMenuView>());
+    ui.registerView("thermal-calibration", std::make_unique<ThermalCalibrationView>());
+    ui.registerView("sensor-calibration", std::make_unique<SensorCalibrationView>());
+    ui.registerView("sensor-precheck", std::make_unique<SensorPrecheckView>());
+    ui.registerView("door-calibration", std::make_unique<DoorCalibrationView>());
 }
 
 void CalibrationController::startSensorCalibration() {

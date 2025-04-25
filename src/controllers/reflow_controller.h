@@ -15,9 +15,6 @@ public:
     static ReflowController& getInstance();
 
     void init() override;
-    void registerViews(UIViewService& viewService) override;
-    void start() override;
-    void stop() override;
     void returnToMainMenu();
 
     void requestStart();          // Called by UI when user selects reflow

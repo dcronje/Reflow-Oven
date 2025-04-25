@@ -7,7 +7,16 @@
 #include "hardware/gpio.h"
 #include "isr_handlers.h"
 #include "services/ui_view_service.h"
+#include "services/electronics_cooling_service.h"
+#include "services/temperature_control_service.h"
+#include "services/door_service.h"
+#include "services/sensor_service.h"
+#include "services/interaction_service.h"
+#include "services/calibration_service.h"
+#include "services/buzzer_service.h"
 #include "controllers/main_menu_controller.h"
+#include "controllers/reflow_controller.h"
+#include "controllers/calibration_controller.h"
 
 #define WATCHDOG_TIMEOUT_MS 5000 // Watchdog timeout in milliseconds
 
@@ -57,13 +66,6 @@ void watchdogKickTask(void* params) {
     }
 }
 
-void initViews()
-{
-    auto& ui = UIViewService::getInstance();
-    MainMenuController::getInstance().registerViews(ui);
-    // ReflowController::getInstance().registerViews(ui);
-}
-
 int main()
 {
     stdio_init_all();
@@ -72,9 +74,25 @@ int main()
 
     // Initialize the watchdog with a timeout, this will reset the system if not regularly kicked
     watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
-    initViews();
-    // create tasks here
 
+    // Initialize the system services
+    DoorService::getInstance().init();
+    SensorService::getInstance().init();
+    UIViewService::getInstance().init();
+    InteractionService::getInstance().init();
+    CalibrationService::getInstance().init();
+    ElectronicsCoolingService::getInstance().init();
+    TemperatureControlService::getInstance().init();
+    BuzzerService::getInstance().init();
+
+    // Initialize the controllers
+    ReflowController::getInstance().init();
+    MainMenuController::getInstance().init();
+    CalibrationController::getInstance().init();
+
+    // Create the watchdog task
+    xTaskCreate(watchdogKickTask, "WatchdogTask", WATCHDOG_TASK_STACK_SIZE, nullptr, WATCHDOG_TASK_PRIORITY, nullptr);
+    
     // Start the FreeRTOS scheduler
     vTaskStartScheduler();
 

@@ -2,7 +2,6 @@
 #include "constants.h"
 #include "globals.h"
 #include "hardware/gpio.h"
-#include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include "pico/time.h"
 
@@ -157,7 +156,7 @@ void DoorService::setServoAngle(uint8_t angle) {
 }
 
 bool DoorService::isFullyOpen() const {
-    return !gpio_get(DOOR_SWITCH_GPIO);
+    return !gpio_get(DOOR_OPEN_SWITCH_GPIO);
 }
 
 bool DoorService::isFullyClosed() const {

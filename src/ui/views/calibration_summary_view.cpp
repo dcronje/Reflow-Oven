@@ -4,9 +4,10 @@
 void CalibrationSummaryView::init() {
     canvas.setFixedFont(ssd1306xled_font6x8);
     selectedBar = 0;
+    selectedTempPoint = 1;  // Start with middle temperature point (100°C)
 }
 
-void CalibrationSummaryView::drawBarGraph(const float* rates, uint8_t color) {
+void CalibrationSummaryView::drawBarGraph(const std::array<float, 10>& rates, uint8_t color) {
     const int graphWidth = 80;
     const int graphHeight = 40;
     const int startX = 8;
@@ -93,19 +94,30 @@ void CalibrationSummaryView::render(DisplaySSD1331_96x64x8_SPI& display) {
     auto& controller = CalibrationController::getInstance();
     const auto& thermal = controller.getThermalSummary();
 
-    // Title
+    // Title with temperature point
     canvas.setColor(WHITE);
-    canvas.printFixed(0, 0, currentMode == DisplayMode::HEATING ? "Heating Rates" : "Cooling Rates", STYLE_BOLD);
+    char title[32];
+    const char* mode = currentMode == DisplayMode::HEATING ? "Heating" : "Cooling";
+    const char* tempPoint = selectedTempPoint == 0 ? "25°C" : 
+                           selectedTempPoint == 1 ? "100°C" : "200°C";
+    snprintf(title, sizeof(title), "%s Rates at %s", mode, tempPoint);
+    canvas.printFixed(0, 0, title, STYLE_BOLD);
 
-    // Draw the appropriate graph
+    // Get rates and draw the appropriate graph
+    float powerPercent = (selectedBar + 1) * 10.0f;
+    float rate;
+
     if (currentMode == DisplayMode::HEATING) {
-        drawBarGraph(thermal.heatingRates, RED);
-        drawSelectedBarInfo((selectedBar + 1) * 10, thermal.heatingRates[selectedBar]);
+        auto rates = thermal.getHeatingRatesAtTemp(selectedTempPoint);
+        drawBarGraph(rates, RED);
+        rate = thermal.getHeatingRateAtTempAndPowerPercent(selectedTempPoint, powerPercent);
     } else {
-        drawBarGraph(thermal.coolingRates, BLUE);
-        drawSelectedBarInfo((selectedBar + 1) * 10, thermal.coolingRates[selectedBar]);
+        auto rates = thermal.getCoolingRatesAtTemp(selectedTempPoint);
+        drawBarGraph(rates, BLUE);
+        rate = thermal.getCoolingRateAtTempAndPowerPercent(selectedTempPoint, powerPercent);
     }
 
+    drawSelectedBarInfo(static_cast<int>(powerPercent), rate);
     display.drawCanvas(0, 0, canvas);
 }
 
@@ -116,15 +128,23 @@ void CalibrationSummaryView::handleEncoderPress() {
 
 void CalibrationSummaryView::handleEncoderLongPress() {
     // Return to calibration menu
-    CalibrationController::getInstance().stopCalibration();
+    CalibrationController::getInstance().returnToCalibrationMenu();
 }
 
 void CalibrationSummaryView::handleEncoderUp() {
-    // Move to next bar
-    selectedBar = (selectedBar + 1) % 10;
+    // Move to next bar, wrapping to next temperature point if needed
+    selectedBar++;
+    if (selectedBar >= 10) {
+        selectedBar = 0;
+        selectedTempPoint = (selectedTempPoint + 1) % 3;  // Cycle through 0, 1, 2
+    }
 }
 
 void CalibrationSummaryView::handleEncoderDown() {
-    // Move to previous bar
-    selectedBar = (selectedBar - 1 + 10) % 10;
+    // Move to previous bar, wrapping to previous temperature point if needed
+    selectedBar--;
+    if (selectedBar < 0) {
+        selectedBar = 9;
+        selectedTempPoint = (selectedTempPoint - 1 + 3) % 3;  // Cycle through 0, 1, 2
+    }
 } 

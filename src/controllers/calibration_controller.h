@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base_controller.h"
 #include "types/calibration_state.h"
 #include "types/calibration_data.h"
 
@@ -9,12 +10,11 @@ struct TemperatureData {
     float ambient;
 };
 
-class CalibrationController {
+class CalibrationController : public BaseController {
 public:
     static CalibrationController& getInstance();
 
-    void init();
-
+    void init() override;
     void startSensorCalibration();
     void startThermalCalibration();
     void startDoorCalibration();

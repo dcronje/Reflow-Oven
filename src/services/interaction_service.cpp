@@ -2,6 +2,7 @@
 #include "constants.h"
 #include "isr_handlers.h"
 #include "ui_view_service.h"
+#include "buzzer_service.h"
 
 QueueHandle_t InteractionService::interactionQueue = nullptr;
 TimerHandle_t InteractionService::debounceTimer = nullptr;
@@ -18,8 +19,8 @@ InteractionService& InteractionService::getInstance() {
     return instance;
 }
 
-void InteractionService::init(UIViewService* ui) {
-    uiService = ui;
+void InteractionService::init() {
+    uiService = &UIViewService::getInstance();
 
     interactionQueue = xQueueCreate(10, sizeof(InteractionType));
 
@@ -40,13 +41,6 @@ void InteractionService::init(UIViewService* ui) {
     debounceTimer = xTimerCreate("debounce", pdMS_TO_TICKS(50), pdFALSE, nullptr, debounceTimerCallback);
     longPressTimer = xTimerCreate("longpress", pdMS_TO_TICKS(500), pdFALSE, nullptr, longPressTimerCallback);
 
-    // Register the shared ISR if not already done
-    // Already done in main.cpp
-    // gpio_set_irq_callback(sharedISR);
-    // irq_set_enabled(IO_IRQ_BANK0, true);
-}
-
-void InteractionService::start() {
     xTaskCreate(taskEntry, "InteractionTask", 1024, nullptr, tskIDLE_PRIORITY + 1, &taskHandle);
 }
 
@@ -63,10 +57,26 @@ void InteractionService::handleInteraction(InteractionType type) {
     if (!uiService) return;
 
     switch (type) {
-        case InteractionType::UP: uiService->handleEncoderUp(); break;
-        case InteractionType::DOWN: uiService->handleEncoderDown(); break;
-        case InteractionType::ENTER: uiService->handleEncoderPress(); break;
-        case InteractionType::BACK: uiService->handleEncoderLongPress(); break;
+        case InteractionType::UP: {
+            uiService->handleEncoderUp(); 
+            BuzzerService::getInstance().playMediumTone(500);
+            break;
+        }
+        case InteractionType::DOWN: {
+            uiService->handleEncoderDown();
+            BuzzerService::getInstance().playMediumTone(500);
+            break;
+        }
+        case InteractionType::ENTER: {
+            uiService->handleEncoderPress();
+            BuzzerService::getInstance().playHighTone(500);
+            break;
+        }
+        case InteractionType::BACK: {
+            uiService->handleEncoderLongPress();
+            BuzzerService::getInstance().playLowTone(500);
+            break;
+        }
         default: break;
     }
 }

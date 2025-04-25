@@ -1,5 +1,6 @@
 #include "controllers/reflow_controller.h"
 #include "services/ui_view_service.h"
+#include "services/buzzer_service.h"
 #include "ui/views/reflow_precheck_view.h"
 #include "ui/views/reflow_process_view.h"
 #include "ui/views/reflow_summary_view.h"
@@ -12,6 +13,10 @@ ReflowController& ReflowController::getInstance() {
 }
 
 void ReflowController::init() {
+    auto& ui = UIViewService::getInstance();
+    ui.registerView("reflow-precheck", std::make_unique<ReflowPrecheckView>());
+    ui.registerView("reflow-process", std::make_unique<ReflowProcessView>());
+    ui.registerView("reflow-summary", std::make_unique<ReflowSummaryView>());
     model.setActiveCurve({
         "LEAD-FREE",
         50.0f,
@@ -24,22 +29,13 @@ void ReflowController::init() {
     });
 }
 
-void ReflowController::registerViews(UIViewService& ui) {
-    ui.registerView("reflow-precheck", std::make_unique<ReflowPrecheckView>());
-    ui.registerView("reflow-process", std::make_unique<ReflowProcessView>());
-    ui.registerView("reflow-summary", std::make_unique<ReflowSummaryView>());
-}
-
-void ReflowController::start() {
-    requestStart();
-}
-
 void ReflowController::requestStart() {
     state = ReflowState::PRECHECK;
     UIViewService::getInstance().showView("reflow-precheck");
 }
 
 void ReflowController::confirmStart() {
+    BuzzerService::getInstance().playHighTone(2000);
     state = ReflowState::RUNNING;
     model.resetProgress();
     stepStartTimeMs = to_ms_since_boot(get_absolute_time());
@@ -48,15 +44,11 @@ void ReflowController::confirmStart() {
 }
 
 void ReflowController::cancel() {
-    stop();
-    UIViewService::getInstance().showView("main-menu");
-}
-
-void ReflowController::stop() {
+    BuzzerService::getInstance().playLowTone(2000);
     state = ReflowState::COMPLETE;
     reflowRequested = false;
     vTaskDelete(nullptr);
-    UIViewService::getInstance().showView("reflow-summary");
+    UIViewService::getInstance().showView("main-menu");
 }
 
 void ReflowController::returnToMainMenu() {
@@ -102,10 +94,14 @@ void ReflowController::run() {
 
         float elapsed = getElapsedMsInStep();
         if (elapsed >= model.getCurrentStep().durationMs) {
+            BuzzerService::getInstance().playMediumTone(1000);
             model.advanceStep();
             stepStartTimeMs = to_ms_since_boot(get_absolute_time());
         }
     }
-
-    stop();
+    BuzzerService::getInstance().playHighTone(2000);
+    state = ReflowState::COMPLETE;
+    reflowRequested = false;
+    vTaskDelete(nullptr);
+    UIViewService::getInstance().showView("reflow-summary");
 }

@@ -6,7 +6,7 @@ class MainMenuController : public BaseController {
 public:
     static MainMenuController& getInstance();
 
-    void registerViews(UIViewService& viewService) override;
+    void init() override;
 
     void selectReflowCurve(); // Called by UI when user selects reflow curve
     void startReflow();

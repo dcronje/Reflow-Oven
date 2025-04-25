@@ -9,7 +9,8 @@ MainMenuController& MainMenuController::getInstance() {
     return instance;
 }
 
-void MainMenuController::registerViews(UIViewService& ui) {
+void MainMenuController::init() {
+    auto& ui = UIViewService::getInstance();
     ui.registerView("main-menu", std::make_unique<MainMenuView>());
     ui.registerView("select-curve", std::make_unique<ReflowCurveSelectionView>());
 }

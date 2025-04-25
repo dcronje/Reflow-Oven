@@ -47,7 +47,17 @@ const int MIN_COOLING_CHANGE_INTERVAL = 250;
 const uint8_t SHT30_I2C_ADDR = 0x44;
 
 // Safety pins
-const int DOOR_SWITCH_GPIO = 8;  // Door safety switch
+const int SSR_TEMP_GPIO = 9; // GPIO pin for the SSR temperature sensor
+const int COOLING_FAN_PWM_GPIO = 10; // GPIO pin for the cooling fan
+const int COOLING_FAN_TACH_GPIO = 10; // GPIO pin for the cooling fan
+
+// Door control
+const int SERVO_POWER_GPIO = 2;      // MOSFET control for servo power
+const int DOOR_OPEN_SWITCH_GPIO = 3; // Door open limit switch
+const int DOOR_CLOSED_SWITCH_GPIO = 4; // Door closed limit switch
+const int DOOR_SERVO_GPIO = 5;       // Servo PWM signal
+
+const int BUZZER_PIN  = 16;  // Adjust this to match your actual buzzer pin
 
 #define SERVO_MIN_PULSE 1950  // ~1 ms
 #define SERVO_MAX_PULSE 3900  // ~2 ms
@@ -79,8 +89,4 @@ const int DOOR_SWITCH_GPIO = 8;  // Door safety switch
 #define FLASH_TARGET_OFFSET 0x100000
 #define CALIBRATION_FLASH_OFFSET 0x100000  // Adjust based on your flash layout
 
-// Door control
-#define SERVO_POWER_GPIO 2      // MOSFET control for servo power
-#define DOOR_OPEN_SWITCH_GPIO 3 // Door open limit switch
-#define DOOR_CLOSED_SWITCH_GPIO 4 // Door closed limit switch
-#define DOOR_SERVO_GPIO 5       // Servo PWM signal
+

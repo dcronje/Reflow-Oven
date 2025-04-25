@@ -15,7 +15,6 @@ public:
     static UIViewService& getInstance();
 
     void init();
-    void start();
     void registerView(const std::string& name, std::unique_ptr<UIView> view);
     void showView(const std::string& name);
 

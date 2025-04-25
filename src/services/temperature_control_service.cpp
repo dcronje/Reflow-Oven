@@ -2,7 +2,6 @@
 #include "services/door_service.h"
 #include "constants.h"
 #include "hardware/gpio.h"
-#include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include "servo.pio.h"
 #include "services/sensor_service.h"
@@ -33,9 +32,7 @@ void TemperatureControlService::init() {
 
     // Initialize to closed position
     setDoorPosition(0);
-}
 
-void TemperatureControlService::start() {
     xTaskCreate(controlTaskWrapper, "TempCtrl", 1024, this, 1, &taskHandle);
 }
 

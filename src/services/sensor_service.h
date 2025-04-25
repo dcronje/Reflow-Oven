@@ -1,6 +1,7 @@
 #pragma once
 
 #include "library/sht30.h"
+#include "one_wire.h"
 #include "types/sensors.h"
 #include "pico/types.h"
 #include <string>
@@ -18,4 +19,5 @@ private:
 
     SensorState state;
     SHT30 sht30;
+    One_wire ssrTempSensor;
 };

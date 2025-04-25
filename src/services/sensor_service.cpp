@@ -11,7 +11,7 @@ SensorService& SensorService::getInstance() {
     return instance;
 }
 
-SensorService::SensorService() : sht30(AMBIENT_TEMP_I2C_PORT, SHT30_I2C_ADDR) {
+SensorService::SensorService() : sht30(AMBIENT_TEMP_I2C_PORT, SHT30_I2C_ADDR), ssrTempSensor(SSR_TEMP_GPIO) {
     state = {};
 }
 
@@ -75,6 +75,11 @@ void SensorService::sensorTask() {
             newState.ambientTemp = temp;
             newState.ambientHumidity = humidity;
         }
+
+        rom_address_t address{};
+        ssrTempSensor.single_device_read_rom(address);
+        ssrTempSensor.convert_temperature(address, true, false);
+        newState.ssrTemp = ssrTempSensor.temperature(address);
 
         state = newState;
         vTaskDelay(pdMS_TO_TICKS(500));

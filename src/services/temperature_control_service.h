@@ -13,7 +13,6 @@ public:
 
     void init();
     void setTargetTemperature(float temp);
-    void start();
 
     float getFrontTemperature() const;
     float getBackTemperature() const;

@@ -11,13 +11,6 @@ public:
     // Setup controller (register views, setup state, etc.)
     virtual void init() {}
 
-    // Hook for view registration
-    virtual void registerViews(UIViewService& viewService) = 0;
-
-    // Optional lifecycle control
-    virtual void start() {}
-    virtual void stop() {}
-
 protected:
     TaskHandle_t taskHandle = nullptr;
 
