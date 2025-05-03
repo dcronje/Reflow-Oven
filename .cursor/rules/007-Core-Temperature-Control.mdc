@@ -1,0 +1,24 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+triggers:
+  - file_change
+  - temperature_control
+
+rule_definition:
+  description: "Enforce temperature control and safety guidelines for the reflow oven."
+
+  rules:
+    - All temperature readings must be validated for reasonable ranges before use.
+    - Temperature control loops must include safety limits and emergency shutdown conditions.
+    - Temperature sensors must be checked for faults or disconnections.
+    - PID control parameters must be tuned for each specific oven configuration.
+    - Temperature profiles must be validated before execution.
+    - All temperature-related operations must be logged for safety and debugging.
+    - Emergency shutdown procedures must be implemented and tested.
+    - Temperature control code must be isolated in dedicated services.
+    - Temperature readings must be averaged over multiple samples to reduce noise.
+    - Temperature control must account for thermal inertia and overshoot.

@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+triggers:
+  - file_change
+  - ui_interaction
+
+rule_definition:
+  description: "Enforce UI and user interaction guidelines."
+
+  rules:
+    - UI updates must be non-blocking and efficient.
+    - User input must be validated before processing.
+    - UI elements must provide clear feedback for user actions.
+    - Error messages must be user-friendly and actionable.
+    - UI must remain responsive during long operations.
+    - UI state must be consistent with system state.
+    - UI must implement proper timeout mechanisms.
+    - UI must handle edge cases gracefully.
+    - UI must provide clear indication of system status.
+    - UI must implement proper error recovery procedures.
+    - UI must be accessible and easy to use.
+    - UI must follow consistent design patterns.

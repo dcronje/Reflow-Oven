@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+triggers:
+  - file_change
+  - task_management
+
+rule_definition:
+  description: "Enforce FreeRTOS task management and scheduling guidelines."
+
+  rules:
+    - Tasks must have clear, single responsibilities.
+    - Task priorities must be documented and justified.
+    - Task stack sizes must be monitored and optimized.
+    - Tasks must implement proper error handling and recovery.
+    - Task synchronization must use appropriate primitives (queues, semaphores).
+    - Tasks must not block for extended periods without timeout.
+    - Task communication must be well-defined and documented.
+    - Task creation must include proper error checking.
+    - Tasks must be properly deleted when no longer needed.
+    - Task scheduling must account for real-time requirements.
+    - Tasks must implement watchdog mechanisms where appropriate.
+    - Task execution times must be monitored and optimized.
