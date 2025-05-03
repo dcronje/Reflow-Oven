@@ -1,0 +1,17 @@
+name: Core FreeRTOS Principles
+version: "1.0"
+globs:
+  - "src/**/*"
+
+triggers:
+  - file_change
+
+rule_definition:
+  description: "Ensure FreeRTOS is properly used for multitasking."
+
+  rules:
+    - Use FreeRTOS tasks, queues, and semaphores for all asynchronous logic.
+    - Use FreeRTOS features wherever possible.
+    - Do not use `delay()`; use `vTaskDelay()` or timers instead.
+    - Services should implement background logic with static FreeRTOS tasks.
+    - Avoid blocking functions unless controlled within a FreeRTOS task.

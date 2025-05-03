@@ -22,13 +22,9 @@ void SensorService::init() {
     gpio_set_function(AMBIENT_TEMP_I2C_SCL_GPIO, GPIO_FUNC_I2C);
 
     // Init SPI chip selects
-    gpio_init(THERMOCOUPLE_FRONT_CS_GPIO);
-    gpio_set_dir(THERMOCOUPLE_FRONT_CS_GPIO, GPIO_OUT);
-    gpio_put(THERMOCOUPLE_FRONT_CS_GPIO, 1);
-
-    gpio_init(THERMOCOUPLE_BACK_CS_GPIO);
-    gpio_set_dir(THERMOCOUPLE_BACK_CS_GPIO, GPIO_OUT);
-    gpio_put(THERMOCOUPLE_BACK_CS_GPIO, 1);
+    gpio_init(THERMOCOUPLE_CS_GPIO);
+    gpio_set_dir(THERMOCOUPLE_CS_GPIO, GPIO_OUT);
+    gpio_put(THERMOCOUPLE_CS_GPIO, 1);
 
     sht30.init();
 
@@ -42,32 +38,18 @@ void SensorService::sensorTask() {
         SensorState newState = {};
         uint8_t data[4];
 
-        // Read front thermocouple
-        gpio_put(THERMOCOUPLE_FRONT_CS_GPIO, 0);
+        // Read thermocouple
+        gpio_put(THERMOCOUPLE_CS_GPIO, 0);
         spi_read_blocking(THERMOCOUPLE_SPI_PORT, 0, data, 4);
-        gpio_put(THERMOCOUPLE_FRONT_CS_GPIO, 1);
+        gpio_put(THERMOCOUPLE_CS_GPIO, 1);
 
         if (data[3] & 0x07) {
             newState.hasError = true;
-            newState.lastError = "Front thermocouple error";
+            newState.lastError = "Thermocouple error";
         } else {
             uint16_t raw = (data[0] << 8) | data[1];
             raw >>= 2;
-            newState.frontTemp = raw * 0.25f;
-        }
-
-        // Read back thermocouple
-        gpio_put(THERMOCOUPLE_BACK_CS_GPIO, 0);
-        spi_read_blocking(THERMOCOUPLE_SPI_PORT, 0, data, 4);
-        gpio_put(THERMOCOUPLE_BACK_CS_GPIO, 1);
-
-        if (data[3] & 0x07) {
-            newState.hasError = true;
-            newState.lastError = "Back thermocouple error";
-        } else {
-            uint16_t raw = (data[0] << 8) | data[1];
-            raw >>= 2;
-            newState.backTemp = raw * 0.25f;
+            newState.currentTemp = raw * 0.25f;
         }
 
         float temp, humidity;

@@ -85,6 +85,7 @@ target_link_libraries(Reflow-Oven
         hardware_pio
         hardware_pwm
         hardware_flash
+        hardware_adc
         FreeRTOS-Kernel-Heap4
         pico_one_wire
         lcdgfx

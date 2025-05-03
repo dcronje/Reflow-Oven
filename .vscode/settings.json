@@ -38,6 +38,15 @@
     "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
     "files.associations": {
         "ios": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "__split_buffer": "cpp",
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "vector": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "queue": "cpp",
+        "span": "cpp"
     }
 }

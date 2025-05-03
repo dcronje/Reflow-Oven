@@ -88,12 +88,10 @@ bool CalibrationController::checkTemperatureDifference() const {
     auto& tempService = TemperatureControlService::getInstance();
     auto& sensorService = SensorService::getInstance();
     
-    float frontTemp = tempService.getFrontTemperature();
-    float backTemp = tempService.getBackTemperature();
+    float currentTemp = tempService.getTemperature();
     float ambientTemp = sensorService.getState().ambientTemp;
     
-    return (std::abs(frontTemp - ambientTemp) <= 5.0f) &&
-           (std::abs(backTemp - ambientTemp) <= 5.0f);
+    return (std::abs(currentTemp - ambientTemp) <= 5.0f); 
 }
 
 TemperatureData CalibrationController::getCurrentTemperatures() const {
@@ -101,8 +99,7 @@ TemperatureData CalibrationController::getCurrentTemperatures() const {
     auto& sensorService = SensorService::getInstance();
     
     return {
-        .front = tempService.getFrontTemperature(),
-        .back = tempService.getBackTemperature(),
+        .current = tempService.getTemperature(),
         .ambient = sensorService.getState().ambientTemp
     };
 }

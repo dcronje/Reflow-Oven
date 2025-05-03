@@ -15,7 +15,7 @@ public:
 
 private:
     bool checkTemperatureDifference() const;
-    void drawTemperatureInfo(float frontTemp, float backTemp, float ambientTemp);
+    void drawTemperatureInfo(float currentTemp, float ambientTemp);
 
     NanoCanvas8 canvas = NanoCanvas8(96, 64, buffer);
     uint8_t buffer[96 * 64];

@@ -2,6 +2,7 @@
 
 #include "services/calibration_service.h"
 #include "services/temperature_control_service.h"
+#include "services/sensor_service.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include "pico/time.h"
@@ -57,8 +58,7 @@ void CalibrationService::startDoorCalibration() {
 void CalibrationService::stopCalibration() {
     currentMode = Mode::NONE;
     state.phase = CalibrationPhase::IDLE;
-    TemperatureControlService::getInstance().setFrontHeaterPower(0);
-    TemperatureControlService::getInstance().setBackHeaterPower(0);
+    TemperatureControlService::getInstance().setHeaterPower(0);
     TemperatureControlService::getInstance().setCoolingPower(0);
 }
 
@@ -80,7 +80,7 @@ float CalibrationService::getExpectedHeatingRate(float percent) const {
     if (i > 9) i = 9;
 
     // Get current temperature
-    float currentTemp = TemperatureControlService::getInstance().getFrontTemperature();
+    float currentTemp = TemperatureControlService::getInstance().getTemperature();
     
     // Find the two temperature points to interpolate between
     int lowerTempIdx = 0;
@@ -117,7 +117,7 @@ float CalibrationService::getExpectedCoolingRate(float percent) const {
     if (i > 9) i = 9;
 
     // Get current temperature
-    float currentTemp = TemperatureControlService::getInstance().getFrontTemperature();
+    float currentTemp = TemperatureControlService::getInstance().getTemperature();
     
     // Find the two temperature points to interpolate between
     int lowerTempIdx = 0;
@@ -176,24 +176,23 @@ void CalibrationService::calibrationTask() {
 }
 
 bool CalibrationService::runSensorCalibration() {
-    auto& tempService = TemperatureControlService::getInstance();
+    auto& sensorService = SensorService::getInstance();
     absolute_time_t start = get_absolute_time();
 
     while (absolute_time_diff_us(start, get_absolute_time()) < TEMP_CALIBRATION_TIME_MS * 1000) {
-        float front = tempService.getFrontTemperature();
-        float back = tempService.getBackTemperature();
-        float avg = (front + back) / 2.0f;
+        SensorState state = sensorService.getState();
+        float current = state.currentTemp;
+        float ambient = state.ambientTemp;
 
-        if (fabsf(front - back) > MIN_TEMP_DIFF_FOR_WARNING) {
+        if (fabsf(current - ambient) > MIN_TEMP_DIFF_FOR_WARNING) {
             displayError("Sensor mismatch");
             return false;
         }
 
-        data.frontSensorOffset = avg - front;
-        data.backSensorOffset = avg - back;
+        data.sensorOffset = ambient - current;
 
         uint32_t elapsed = to_ms_since_boot(get_absolute_time()) - to_ms_since_boot(start);
-        updateProgress("Sensor Calibration", (float)elapsed / TEMP_CALIBRATION_TIME_MS, avg, TEMP_CALIBRATION_TIME_MS - elapsed);
+        updateProgress("Sensor Calibration", (float)elapsed / TEMP_CALIBRATION_TIME_MS, current - ambient, TEMP_CALIBRATION_TIME_MS - elapsed);
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -219,45 +218,43 @@ bool CalibrationService::runThermalCalibration() {
         if (tempIdx > 0) {  // Skip for first point (room temperature)
             snprintf(progressMsg, sizeof(progressMsg), "Heating to %d°C", static_cast<int>(targetTemp));
             // Use 50% power to reach target temperature
-            tempService.setFrontHeaterPower(50);
-            tempService.setBackHeaterPower(50);
+            tempService.setHeaterPower(50);
             
             // Wait until we're close to target temperature
-            while (tempService.getFrontTemperature() < targetTemp - 5.0f) {
-                float currentTemp = tempService.getFrontTemperature();
+            while (tempService.getTemperature() < targetTemp - 5.0f) {
+                float currentTemp = tempService.getTemperature();
                 updateProgress(progressMsg, 0.0f, currentTemp, 0);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
             
             // Settle at target temperature
             snprintf(progressMsg, sizeof(progressMsg), "Settling at %d°C", static_cast<int>(targetTemp));
-            updateProgress(progressMsg, 0.0f, tempService.getFrontTemperature(), THERMAL_SETTLE_TIME_MS);
+            updateProgress(progressMsg, 0.0f, tempService.getTemperature(), THERMAL_SETTLE_TIME_MS);
             vTaskDelay(pdMS_TO_TICKS(THERMAL_SETTLE_TIME_MS));
         }
 
         // Now test different power levels at this temperature
         for (int power = 10, i = 0; power <= 100; power += 10, ++i) {
             snprintf(progressMsg, sizeof(progressMsg), "Testing %d%% at %d°C", power, static_cast<int>(targetTemp));
-            tempService.setFrontHeaterPower(power);
-            tempService.setBackHeaterPower(power);
+            tempService.setHeaterPower(power);
 
             // Wait for thermal system to settle
-            updateProgress(progressMsg, 0.0f, tempService.getFrontTemperature(), THERMAL_SETTLE_TIME_MS);
+            updateProgress(progressMsg, 0.0f, tempService.getTemperature(), THERMAL_SETTLE_TIME_MS);
             vTaskDelay(pdMS_TO_TICKS(THERMAL_SETTLE_TIME_MS));
-            float tStart = tempService.getFrontTemperature();
+            float tStart = tempService.getTemperature();
 
             uint32_t elapsed = 0;
             const uint32_t interval = 1000; // update every second
 
             while (elapsed < THERMAL_CALIBRATION_TIME_MS) {
-                float currentTemp = tempService.getFrontTemperature();
+                float currentTemp = tempService.getTemperature();
                 float progress = (float)elapsed / THERMAL_CALIBRATION_TIME_MS;
                 updateProgress(progressMsg, progress, currentTemp, THERMAL_CALIBRATION_TIME_MS - elapsed);
                 vTaskDelay(pdMS_TO_TICKS(interval));
                 elapsed += interval;
             }
 
-            float tEnd = tempService.getFrontTemperature();
+            float tEnd = tempService.getTemperature();
             data.thermalSummary.heatingRates[tempIdx][i] = (tEnd - tStart) / (THERMAL_CALIBRATION_TIME_MS / 1000.0f);
         }
     }
@@ -274,19 +271,18 @@ bool CalibrationService::runThermalCalibration() {
         if (tempIdx < NUM_TEMP_POINTS - 1) {  // Skip for highest temperature point
             snprintf(progressMsg, sizeof(progressMsg), "Cooling to %d°C", static_cast<int>(targetTemp));
             // Use 50% power to reach target temperature
-            tempService.setFrontHeaterPower(50);
-            tempService.setBackHeaterPower(50);
+            tempService.setHeaterPower(50);
             
             // Wait until we're close to target temperature
-            while (tempService.getFrontTemperature() > targetTemp + 5.0f) {
-                float currentTemp = tempService.getFrontTemperature();
+            while (tempService.getTemperature() > targetTemp + 5.0f) {
+                float currentTemp = tempService.getTemperature();
                 updateProgress(progressMsg, 0.0f, currentTemp, 0);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
             
             // Settle at target temperature
             snprintf(progressMsg, sizeof(progressMsg), "Settling at %d°C", static_cast<int>(targetTemp));
-            updateProgress(progressMsg, 0.0f, tempService.getFrontTemperature(), THERMAL_SETTLE_TIME_MS);
+            updateProgress(progressMsg, 0.0f, tempService.getTemperature(), THERMAL_SETTLE_TIME_MS);
             vTaskDelay(pdMS_TO_TICKS(THERMAL_SETTLE_TIME_MS));
         }
 
@@ -296,29 +292,28 @@ bool CalibrationService::runThermalCalibration() {
             tempService.setCoolingPower(fan);
 
             // Wait for thermal system to settle
-            updateProgress(progressMsg, 0.0f, tempService.getFrontTemperature(), THERMAL_SETTLE_TIME_MS);
+            updateProgress(progressMsg, 0.0f, tempService.getTemperature(), THERMAL_SETTLE_TIME_MS);
             vTaskDelay(pdMS_TO_TICKS(THERMAL_SETTLE_TIME_MS));
-            float tStart = tempService.getFrontTemperature();
+            float tStart = tempService.getTemperature();
 
             uint32_t elapsed = 0;
             const uint32_t interval = 1000; // update every second
 
             while (elapsed < COOLING_TEST_TIME_MS) {
-                float currentTemp = tempService.getFrontTemperature();
+                float currentTemp = tempService.getTemperature();
                 float progress = (float)elapsed / COOLING_TEST_TIME_MS;
                 updateProgress(progressMsg, progress, currentTemp, COOLING_TEST_TIME_MS - elapsed);
                 vTaskDelay(pdMS_TO_TICKS(interval));
                 elapsed += interval;
             }
 
-            float tEnd = tempService.getFrontTemperature();
+            float tEnd = tempService.getTemperature();
             data.thermalSummary.coolingRates[tempIdx][i] = (tStart - tEnd) / (COOLING_TEST_TIME_MS / 1000.0f);
         }
     }
 
     // Stop any heating/cooling output
-    tempService.setFrontHeaterPower(0);
-    tempService.setBackHeaterPower(0);
+    tempService.setHeaterPower(0);
     tempService.setCoolingPower(0);
 
     data.isCalibrated = true;

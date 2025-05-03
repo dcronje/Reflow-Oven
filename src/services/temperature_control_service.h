@@ -14,15 +14,12 @@ public:
     void init();
     void setTargetTemperature(float temp);
 
-    float getFrontTemperature() const;
-    float getBackTemperature() const;
-    uint8_t getFrontHeaterPower() const;
-    uint8_t getBackHeaterPower() const;
+    float getTemperature() const;
+    uint8_t getHeaterPower() const;
     uint8_t getCoolingPower() const;
     TemperatureState getState() const;
 
-    void setFrontHeaterPower(uint8_t power);
-    void setBackHeaterPower(uint8_t power);
+    void setHeaterPower(uint8_t power);
     void setCoolingPower(uint8_t power);
 
     void setDoorPosition(uint8_t percent);
@@ -40,10 +37,8 @@ private:
     TemperatureState state;
 
     float targetTemp;
-    float frontTemp;
-    float backTemp;
-    uint8_t frontHeaterPower;
-    uint8_t backHeaterPower;
+    float currentTemp;
+    uint8_t heaterPower;
     uint8_t coolingPower;
     uint32_t lastCoolingChangeTime;
 

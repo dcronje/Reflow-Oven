@@ -12,13 +12,10 @@ bool SensorPrecheckView::checkTemperatureDifference() const {
     return controller.checkTemperatureDifference();
 }
 
-void SensorPrecheckView::drawTemperatureInfo(float frontTemp, float backTemp, float ambientTemp) {
+void SensorPrecheckView::drawTemperatureInfo(float currentTemp, float ambientTemp) {
     char tempInfo[32];
-    snprintf(tempInfo, sizeof(tempInfo), "Front: %.1fC", frontTemp);
+    snprintf(tempInfo, sizeof(tempInfo), "Temp: %.1fC", currentTemp);
     canvas.printFixed(0, 12, tempInfo, STYLE_NORMAL);
-    
-    snprintf(tempInfo, sizeof(tempInfo), "Back: %.1fC", backTemp);
-    canvas.printFixed(0, 24, tempInfo, STYLE_NORMAL);
     
     snprintf(tempInfo, sizeof(tempInfo), "Ambient: %.1fC", ambientTemp);
     canvas.printFixed(0, 36, tempInfo, STYLE_NORMAL);
@@ -37,14 +34,14 @@ void SensorPrecheckView::render(DisplaySSD1331_96x64x8_SPI& display) {
 
     // Current offsets
     char offsetInfo[32];
-    snprintf(offsetInfo, sizeof(offsetInfo), "Front: %.1fC", data.frontSensorOffset);
+    snprintf(offsetInfo, sizeof(offsetInfo), "Temp: %.1fC", data.sensorOffset);
     canvas.printFixed(0, 12, offsetInfo, STYLE_NORMAL);
     
-    snprintf(offsetInfo, sizeof(offsetInfo), "Back: %.1fC", data.backSensorOffset);
+    snprintf(offsetInfo, sizeof(offsetInfo), "Back: %.1fC", data.sensorOffset);
     canvas.printFixed(0, 24, offsetInfo, STYLE_NORMAL);
 
     // Current temperatures
-    drawTemperatureInfo(temps.front, temps.back, temps.ambient);
+    drawTemperatureInfo(temps.current, temps.ambient);
 
     // Instructions
     if (checkTemperatureDifference()) {

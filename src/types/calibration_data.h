@@ -1,4 +1,5 @@
 #pragma once
+
 #include <stdint.h>
 #include <array>
 
@@ -51,8 +52,7 @@ struct DoorCalibrationData {
 };
 
 struct CalibrationData {
-    float frontSensorOffset;
-    float backSensorOffset;
+    float sensorOffset;
     ThermalCalibrationSummary thermalSummary;
     DoorCalibrationData doorCalibration;
     uint32_t lastCalibrationTime;

@@ -1,0 +1,18 @@
+name: Core Naming Conventions
+version: "1.0"
+globs:
+  - "src/**/*"
+
+triggers:
+  - file_change
+
+rule_definition:
+  description: "Maintain consistent naming across the codebase."
+
+  rules:
+    - Class names must use PascalCase (e.g., `ReflowController`, `MainMenuView`).
+    - Method, variable, and parameter names must use camelCase.
+    - File names must be snake_case and match the class they define.
+    - Use `*_controller.cpp`, `*_view.cpp`, `*_service.cpp`, etc. as file suffixes (all lower case).
+    - Postfix classes with their role (e.g., Controller, View, Service, Model).
+    - GPIO constants must be defined in `constants.h` using UPPER_CASE (e.g., `HEATER_PWM_GPIO`).

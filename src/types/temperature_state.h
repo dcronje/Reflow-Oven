@@ -3,12 +3,10 @@
 #include <cstdint>
 
 struct TemperatureState {
-    float frontTemp;
-    float backTemp;
+    float currentTemp;
     float targetTemp;
 
-    float frontOutput;
-    float backOutput;
+    float output;
 
     bool isHeating;
     bool isCooling;

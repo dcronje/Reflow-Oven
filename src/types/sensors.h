@@ -4,8 +4,7 @@
 #include <string>
 
 struct SensorState {
-    float frontTemp = 0.0f;
-    float backTemp = 0.0f;
+    float currentTemp = 0.0f;
     float ambientTemp = 0.0f;
     float ambientHumidity = 0.0f;
     float ssrTemp = 0.0f;

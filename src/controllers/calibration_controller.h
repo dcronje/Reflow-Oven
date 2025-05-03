@@ -5,8 +5,7 @@
 #include "types/calibration_data.h"
 
 struct TemperatureData {
-    float front;
-    float back;
+    float current;
     float ambient;
 };
 

@@ -13,8 +13,8 @@ TemperatureControlService& TemperatureControlService::getInstance() {
 }
 
 TemperatureControlService::TemperatureControlService()
-    : targetTemp(0.0f), frontTemp(0.0f), backTemp(0.0f),
-      frontHeaterPower(0), backHeaterPower(0), coolingPower(0),
+    : targetTemp(0.0f), currentTemp(0.0f),
+      heaterPower(0), coolingPower(0),
       lastCoolingChangeTime(0),
       taskHandle(nullptr) {
     state = {};
@@ -22,13 +22,9 @@ TemperatureControlService::TemperatureControlService()
 
 void TemperatureControlService::init() {
     // Initialize heaters
-    gpio_init(HEATER_FRONT_SSR_GPIO);
-    gpio_set_dir(HEATER_FRONT_SSR_GPIO, GPIO_OUT);
-    gpio_put(HEATER_FRONT_SSR_GPIO, 0);
-
-    gpio_init(HEATER_BACK_SSR_GPIO);
-    gpio_set_dir(HEATER_BACK_SSR_GPIO, GPIO_OUT);
-    gpio_put(HEATER_BACK_SSR_GPIO, 0);
+    gpio_init(HEATER_SSR_GPIO);
+    gpio_set_dir(HEATER_SSR_GPIO, GPIO_OUT);
+    gpio_put(HEATER_SSR_GPIO, 0);
 
     // Initialize to closed position
     setDoorPosition(0);
@@ -46,8 +42,7 @@ void TemperatureControlService::controlTask() {
 
     while (true) {
         const SensorState& sensorState = SensorService::getInstance().getState();
-        frontTemp = sensorState.frontTemp;
-        backTemp = sensorState.backTemp;
+        currentTemp = sensorState.currentTemp;
 
         updateHeaterControl();
         updateCoolingControl();
@@ -58,22 +53,16 @@ void TemperatureControlService::controlTask() {
 
 void TemperatureControlService::updateHeaterControl() {
     if (state.hasError || targetTemp == 0.0f) {
-        setFrontHeaterPower(0);
-        setBackHeaterPower(0);
+        setHeaterPower(0);
         return;
     }
 
-    float frontError = targetTemp - frontTemp;
-    float frontPower = frontError * TEMPERATURE_CONTROL_KP;
-    frontPower = std::clamp(frontPower, 0.0f, 100.0f);
-    setFrontHeaterPower(static_cast<uint8_t>(frontPower));
+    float error = targetTemp - currentTemp;
+    float power = error * TEMPERATURE_CONTROL_KP;
+    power = std::clamp(power, 0.0f, 100.0f);
+    setHeaterPower(static_cast<uint8_t>(power));
 
-    float backError = targetTemp - backTemp;
-    float backPower = backError * TEMPERATURE_CONTROL_KP;
-    backPower = std::clamp(backPower, 0.0f, 100.0f);
-    setBackHeaterPower(static_cast<uint8_t>(backPower));
-
-    state.isHeating = (frontPower > 0 || backPower > 0);
+    state.isHeating = (power > 0);
 }
 
 void TemperatureControlService::updateCoolingControl() {
@@ -82,8 +71,7 @@ void TemperatureControlService::updateCoolingControl() {
         return;
     }
 
-    float maxTemp = std::max(frontTemp, backTemp);
-    float error = maxTemp - targetTemp;
+    float error = currentTemp - targetTemp;
 
     if (error <= 0.0f) {
         setCoolingPower(0);
@@ -95,16 +83,10 @@ void TemperatureControlService::updateCoolingControl() {
     setCoolingPower(power);
 }
 
-void TemperatureControlService::setFrontHeaterPower(uint8_t power) {
-    frontHeaterPower = power;
-    state.frontOutput = static_cast<float>(power);
-    gpio_put(HEATER_FRONT_SSR_GPIO, (power > 50));
-}
-
-void TemperatureControlService::setBackHeaterPower(uint8_t power) {
-    backHeaterPower = power;
-    state.backOutput = static_cast<float>(power);
-    gpio_put(HEATER_BACK_SSR_GPIO, (power > 50));
+void TemperatureControlService::setHeaterPower(uint8_t power) {
+    heaterPower = power;
+    state.output = static_cast<float>(power);
+    gpio_put(HEATER_SSR_GPIO, (power > 50));
 }
 
 void TemperatureControlService::setCoolingPower(uint8_t power) {
@@ -136,20 +118,8 @@ void TemperatureControlService::setTargetTemperature(float temp) {
     targetTemp = temp;
 }
 
-float TemperatureControlService::getFrontTemperature() const {
-    return frontTemp;
-}
-
-float TemperatureControlService::getBackTemperature() const {
-    return backTemp;
-}
-
-uint8_t TemperatureControlService::getFrontHeaterPower() const {
-    return frontHeaterPower;
-}
-
-uint8_t TemperatureControlService::getBackHeaterPower() const {
-    return backHeaterPower;
+float TemperatureControlService::getTemperature() const {
+    return currentTemp;
 }
 
 uint8_t TemperatureControlService::getCoolingPower() const {

@@ -1,0 +1,17 @@
+name: Core Coding Standards
+version: "1.0"
+globs:
+  - "src/**/*.cpp"
+  - "src/**/*.h"
+---
+rule_definition:
+  description: Enforces general C++ and Raspberry Pi Pico SDK coding standards.
+  rules:
+    - Prefer using C++ classes over C-style code.
+    - Avoid `malloc` and `new` where possible; prefer stack or static allocation.
+    - Leverage the Pico SDK for hardware interaction (GPIO, PWM, I2C, SPI, etc).
+    - Only use third-party libraries for hardware where Pico SDK lacks coverage or efficiency.
+    - All FreeRTOS features (tasks, queues, semaphores) must use static allocation unless justified.
+    - ISR code should be kept minimal and safe (no dynamic memory, minimal logic).
+    - Follow naming conventions: PascalCase for classes, camelCase for methods and variables, CONSTANT_CASE for defines.
+    - Maintain .h/.cpp file pairs in the same directory with matching filenames.

@@ -1,0 +1,17 @@
+name: Core Base Class Usage
+version: "1.0"
+globs:
+  - "src/**/*"
+
+triggers:
+  - file_change
+
+rule_definition:
+  description: "Ensure inheritance from provided base classes."
+
+  rules:
+    - All Views must inherit from `BaseView`.
+    - All Controllers must inherit from `BaseController`.
+    - All Models should inherit from `BaseModel` where applicable.
+    - Avoid implementing core interface logic directly in leaf classes.
+    - Common controller/view/model behavior should be moved into shared base classes.

@@ -21,19 +21,13 @@ const int ENCODER_SW_GPIO = 4;
 const int BUZZER_GPIO = 8; // GPIO pin for the buzzer
 
 // Thermocouple pins
-const int THERMOCOUPLE_BACK_CS_GPIO = 0; // GPIO pin for the thermocouple backlight
-const int THERMOCOUPLE_FRONT_CS_GPIO = 1; // GPIO pin for the thermocouple frontlight
+const int THERMOCOUPLE_CS_GPIO = 1; // GPIO pin for the thermocouple
 const int THERMOCOUPLE_SPI_CLK_GPIO = 10; // SPI clock (SCK) – GPIO 10
 const int THERMOCOUPLE_SPI_MISO_GPIO = 12; // SPI MISO – GPIO 12
 
 // Heater control pins (SSR controlled)
-const int HEATER_FRONT_SSR_GPIO = 19; // GPIO pin for the front element SSR
-const int HEATER_BACK_SSR_GPIO = 20; // GPIO pin for the back element SSR
+const int HEATER_SSR_GPIO = 19; // GPIO pin for the element SSR
 
-// Ventilation pins
-const int VENT_RIGHT_SERVO_GPIO = 4; // GPIO pin for the right vent servo
-const int VENT_LEFT_SERVO_GPIO = 4; // GPIO pin for the left vent servo
-const int FAN_SERVO_GPIO = 5; // GPIO pin for the fan servo
 const int FAN_CONTROL_GPIO = 5; // GPIO pin for the fan control
 const int FAN_TACH_GPIO = 7;    // GPIO pin for the fan tachometer
 
@@ -55,13 +49,11 @@ const int COOLING_FAN_TACH_GPIO = 10; // GPIO pin for the cooling fan
 const int SERVO_POWER_GPIO = 2;      // MOSFET control for servo power
 const int DOOR_OPEN_SWITCH_GPIO = 3; // Door open limit switch
 const int DOOR_CLOSED_SWITCH_GPIO = 4; // Door closed limit switch
-const int DOOR_SERVO_GPIO = 5;       // Servo PWM signal
+const int DOOR_SERVO_CONTROL_GPIO = 5;       // Servo PWM signal
+const int DOOR_SERVO_FEEDBACK_GPIO = 5;
 
 const int BUZZER_PIN  = 16;  // Adjust this to match your actual buzzer pin
 
-#define SERVO_MIN_PULSE 1950  // ~1 ms
-#define SERVO_MAX_PULSE 3900  // ~2 ms
-#define SERVO_PERIOD_TICKS 39062  // 20 ms period
 
 // SPI configurations
 #define DISPLAY_SPI_PORT spi0

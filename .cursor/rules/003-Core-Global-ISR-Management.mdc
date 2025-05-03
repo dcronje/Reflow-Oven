@@ -1,0 +1,15 @@
+name: Core Global ISR Management
+version: "1.0"
+globs:
+  - "src/irq_handlers.*"
+
+triggers:
+  - file_change
+
+rule_definition:
+  description: "All interrupts must be handled through the centralized ISR handler."
+
+  rules:
+    - Do not handle GPIO interrupts directly in unrelated modules.
+    - Register ISR callbacks through the shared `irq_handlers.cpp` dispatcher.
+    - ISR callbacks must not allocate memory or block; delegate work to tasks via queues.
