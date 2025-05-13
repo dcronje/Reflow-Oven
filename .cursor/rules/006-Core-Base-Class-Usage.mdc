@@ -10,8 +10,8 @@ rule_definition:
   description: "Ensure inheritance from provided base classes."
 
   rules:
-    - All Views must inherit from `BaseView`.
-    - All Controllers must inherit from `BaseController`.
-    - All Models should inherit from `BaseModel` where applicable.
+    - All Views must inherit from `View`.
+    - All Controllers must inherit from `Controller`.
+    - All Models should inherit from `Model`.
     - Avoid implementing core interface logic directly in leaf classes.
     - Common controller/view/model behavior should be moved into shared base classes.

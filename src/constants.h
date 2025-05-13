@@ -11,11 +11,17 @@ const int DISPLAY_SPI_MOSI_GPIO = 19; // SPI data (MOSI) – GPIO 19
 const int DISPLAY_SPI_CS_GPIO = 17;   // Chip Select (CS) – GPIO 17
 const int DISPLAY_SPI_DC_GPIO = 20;   // Data/Command (DC) – GPIO 14
 const int DISPLAY_SPI_RST_GPIO = 21;  // Reset (RST) – GPIO 13
+const int DISPLAY_BACKLIGHT_GPIO = 22;
 
 // Encoder pins
 const int ENCODER_CLK_GPIO = 2;
 const int ENCODER_DC_GPIO = 3;
 const int ENCODER_SW_GPIO = 4;
+
+// Interaction constants
+const int DEBOUNCE_TIME_MS = 50;     // Button debounce time in milliseconds
+const int LONG_PRESS_TIME_MS = 500;   // Long press detection time in milliseconds  
+const int QUEUE_WAIT_TIME_MS = 10;    // Queue wait time in milliseconds
 
 // Buzzer pin
 const int BUZZER_GPIO = 8; // GPIO pin for the buzzer
@@ -80,5 +86,14 @@ const int BUZZER_PIN  = 16;  // Adjust this to match your actual buzzer pin
 #define SETTINGS_MAGIC 0xDEADBEEF
 #define FLASH_TARGET_OFFSET 0x100000
 #define CALIBRATION_FLASH_OFFSET 0x100000  // Adjust based on your flash layout
+
+// Display Configuration
+#define DISPLAY_SPI_FREQ 40000000  // 40MHz
+#define DISPLAY_WIDTH 240
+#define DISPLAY_HEIGHT 320
+#define DISPLAY_X_OFFSET 0
+#define DISPLAY_Y_OFFSET 0
+#define DISPLAY_ROTATION ST7789_TFT::TFT_Degrees_90  // Rotate 90 degrees for landscape orientation
+#define DISPLAY_BACKLIGHT_PWM_WRAP 65535
 
 

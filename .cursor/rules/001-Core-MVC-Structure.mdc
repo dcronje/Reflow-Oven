@@ -10,9 +10,7 @@ rule_definition:
   description: "Enforce strict MVC architecture rules."
 
   rules:
-    - Views must only communicate with Controllers.
-    - Views must not access Services, Models, or hardware directly.
-    - Controllers may communicate with Views, Services, and Models.
+    - Controllers receive user input and manage the view lifecycle with state.
     - Controllers must not directly control hardware.
     - Services are singleton classes for hardware interfacing or background logic.
     - Services must not reference UI components or Views.

@@ -47,6 +47,8 @@
         "deque": "cpp",
         "forward_list": "cpp",
         "queue": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "map": "cpp",
+        "memory": "cpp"
     }
 }

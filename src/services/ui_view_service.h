@@ -1,24 +1,20 @@
+// ui_view_service.h
 #pragma once
 
+#include "lvgl.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include <map>
 #include <memory>
-#include <string>
-
-#include "ui_view.h"
-#include <lcdgfx.h>
-#include <lcdgfx_gui.h>
+#include "ui/root_view.h"
 
 class UIViewService {
 public:
     static UIViewService& getInstance();
 
     void init();
-    void registerView(const std::string& name, std::unique_ptr<UIView> view);
-    void showView(const std::string& name);
+    void setBacklight(float brightness);
 
-    // Forwarded from InteractionService
+    // Event forwarding
     void handleEncoderUp();
     void handleEncoderDown();
     void handleEncoderPress();
@@ -26,15 +22,23 @@ public:
 
 private:
     UIViewService();
-    static void renderTaskEntry(void* param);
-    void renderLoop();
+    void update();
+    static void updateTaskEntry(void* param);
+    void updateLoop();
 
-    TaskHandle_t renderTask = nullptr;
+    void initDisplay();
+    void initBacklight();
+    void initSPI();
+    void resetDisplay();
+    static void st7789_send_cmd(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, const uint8_t* param, size_t param_size);
+    static void st7789_send_color(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, unsigned char* param, size_t param_size);
 
-    std::map<std::string, std::unique_ptr<UIView>> views;
-    UIView* currentView = nullptr;
-    std::string currentViewName;
+    TaskHandle_t taskHandle;
+    lv_display_t* display;
+    std::unique_ptr<RootView> rootView;
 
-    DisplaySSD1331_96x64x8_SPI display;
+    // PWM/backlight
+    int slice_num;
+    int channel;
+    float currentBrightness = 1.0f;
 };
-

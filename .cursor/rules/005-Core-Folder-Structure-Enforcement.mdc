@@ -13,7 +13,8 @@ rule_definition:
     - Controllers must be placed in `src/controllers`.
     - Views must be in `src/ui/views`.
     - Reusable UI elements must be in `src/ui/elements`.
-    - Services go in `src/services`, Models in `src/models`.
+    - Services go in `src/services`, 
+    - Models in `src/models`.
     - All reusable data types and enums must be in `src/types`.
     - `constants.h` must define GPIOs and hardware config values.
     - Custom internal libraries go in `src/library`, external in `/lib`.

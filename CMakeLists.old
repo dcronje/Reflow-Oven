@@ -26,12 +26,11 @@ endif()
 
 # Use pico2 board type - SDK will handle the memory settings for RP2350
 set(PICO_BOARD pico2 CACHE STRING "Board type")
-set(PICO_PLATFORM rp2350)
 
 # Define PICO_RP2350 for FreeRTOS config
 add_compile_definitions(PICO_RP2350=1)
 
-# For FreeRTOS, ensure we're building for the Cortex-M33
+# For FreeRTOS, ensure we're building for the Cortex-M33 
 add_compile_options(-mcpu=cortex-m33 -mthumb -march=armv8-m.main+fp+dsp -mfloat-abi=softfp)
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
@@ -43,21 +42,35 @@ project(Reflow-Oven C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# FreeRTOS configuration
-set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS/FreeRTOS-Kernel CACHE STRING "")
+# FreeRTOS configuration - using project-specific install
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS/FreeRTOS-Kernel)
 set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE STRING "")
 
-# Important: Make sure to use the FreeRTOS_Kernel_import.cmake from the repo
+# Create FreeRTOS import file
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS_Kernel_import.cmake)
+    file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS_Kernel_import.cmake [=[
+# This is a copy of $FREERTOS_KERNEL_PATH/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake
+# Modifications:
+# - Set FREERTOS_KERNEL_PATH locally
+# - Use the Community-Supported-Ports for RP2040
+
+if (DEFINED ENV{FREERTOS_KERNEL_PATH} AND (NOT FREERTOS_KERNEL_PATH))
+    set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
+endif ()
+
+# Include community supported RP2040 port
+set(FREERTOS_PORT_DIR ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040 CACHE STRING "")
+
+# Find required packages
+find_package(CMSIS REQUIRED)
+find_package(PICO_SDK REQUIRED)
+
+include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FREERTOS_KERNEL_IMPORT.cmake)
+]=])
+endif()
+
+# Include our custom FreeRTOS import
 include(FreeRTOS_Kernel_import.cmake)
-
-# MPU wrapper configuration for compatibility
-add_compile_definitions(configUSE_MPU_WRAPPERS_V1=1)
-
-# Define SVC number for the scheduler
-add_compile_definitions(portSVC_START_SCHEDULER=102)
-
-# Ensure multicore support is enabled for dual-core operation
-add_compile_definitions(LIB_PICO_MULTICORE=1)
 
 set(LV_CONF_PATH "${CMAKE_SOURCE_DIR}/src/lv_conf.h")
 add_definitions(-DLV_CONF_PATH=\"${CMAKE_SOURCE_DIR}/src/lv_conf.h\")
@@ -104,9 +117,10 @@ target_include_directories(Reflow-Oven PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/types
+        ${FREERTOS_SOURCE_DIR}/include
+        ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/include
         ${CMAKE_CURRENT_LIST_DIR}/lib/nanopb
         ${CMAKE_CURRENT_LIST_DIR}/lib/lvgl
-        # RTOS includes are handled by the FreeRTOS_Kernel_import.cmake
 )
 
 # Add any user requested libraries
@@ -117,7 +131,6 @@ target_link_libraries(Reflow-Oven
         hardware_pwm
         hardware_flash
         hardware_adc
-        pico_multicore           # Explicitly link multicore library for dual-core operation
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4
         pico_one_wire

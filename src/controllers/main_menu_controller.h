@@ -1,14 +1,22 @@
 #pragma once
 
-#include "base_controller.h"
+#include "core/controller.h"
+#include "lvgl.h"
 
-class MainMenuController : public BaseController {
+class MainMenuController : public Controller {
 public:
     static MainMenuController& getInstance();
 
+    // Controller interface methods
+    void render() override;
     void init() override;
+    void onEncoderPress() override;
+    void onEncoderUp() override;
+    void onEncoderDown() override;
+    void onEncoderLongPress() override;
 
-    void selectReflowCurve(); // Called by UI when user selects reflow curve
+    // UI action methods
+    void selectReflowCurve();
     void startReflow();
     void calibrate();
     void openSettings();
@@ -16,4 +24,11 @@ public:
 
 private:
     MainMenuController() = default;
+    
+    // UI elements
+    lv_obj_t* menu = nullptr;
+    int selectedIndex = 0;
+    
+    // Helper methods
+    void updateButtonFocus();
 };

@@ -1,0 +1,61 @@
+// message.proto
+
+syntax = "proto3";
+
+message UICommand {
+  enum Type {
+    START_REFLOW = 0;
+    CANCEL_REFLOW = 1;
+    OPEN_DOOR = 2;
+    CLOSE_DOOR = 3;
+    CALIBRATE_THERMOCOUPLE = 4;
+    RUN_CALIBRATION_CYCLE = 5;
+    SET_LED_BRIGHTNESS = 6;
+    SET_SELECTED_CURVE = 7;
+    RUN_DOOR_CALIBRATION = 8;
+  }
+  Type type = 1;
+
+  int32 value = 2;              // e.g. brightness, curve ID
+  string curve_name = 3;        // optional named curve
+}
+
+message SystemStatus {
+  enum ShutdownReason {
+    NONE = 0;
+    SSR_OVERHEAT = 1;
+    OVEN_OVERHEAT = 2;
+    DOOR_MALFUNCTION = 3;
+  }
+
+  float current_temp = 1;
+  float ambient_temp = 2;
+  float target_temp = 3;
+  float ssr_temp = 4;
+
+  bool reflow_active = 5;
+  bool door_open = 6;
+  bool servo_powered = 7;
+
+  int32 time_elapsed_ms = 8;
+  int32 time_remaining_ms = 9;
+
+  uint32 ssr_power_percent = 10;
+  uint32 fan_speed_percent = 11;
+  uint32 led_brightness = 12;
+
+  string current_stage = 13; // e.g. "Preheat", "Soak", "Reflow", "Cooling"
+
+  float door_percent_open = 14;
+  bool door_fully_open = 15;
+  bool door_fully_closed = 16;
+
+  bool emergency_shutdown = 17; // True if emergency shut down occurred
+  ShutdownReason shutdown_reason = 18; // Indicates the specific cause
+}
+
+message ReflowCurve {
+  string name = 1;
+  repeated float temp_points = 2;
+  repeated int32 time_points_ms = 3;
+}

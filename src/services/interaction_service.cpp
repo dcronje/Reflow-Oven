@@ -1,8 +1,9 @@
-#include "interaction_service.h"
+#include "services/interaction_service.h"
 #include "constants.h"
 #include "isr_handlers.h"
-#include "ui_view_service.h"
-#include "buzzer_service.h"
+#include "services/ui_view_service.h"
+#include "services/buzzer_service.h"
+#include <cstdio>
 
 QueueHandle_t InteractionService::interactionQueue = nullptr;
 TimerHandle_t InteractionService::debounceTimer = nullptr;
@@ -22,7 +23,7 @@ InteractionService& InteractionService::getInstance() {
 void InteractionService::init() {
     uiService = &UIViewService::getInstance();
 
-    interactionQueue = xQueueCreate(10, sizeof(InteractionType));
+    interactionQueue = xQueueCreate(10, sizeof(Interaction));
 
     // Encoder pin setup
     gpio_init(ENCODER_CLK_GPIO);
@@ -30,22 +31,20 @@ void InteractionService::init() {
     gpio_set_dir(ENCODER_CLK_GPIO, GPIO_IN);
     gpio_set_dir(ENCODER_DC_GPIO, GPIO_IN);
 
-    // Button pin setup
+    // Button pin setup (encoder switch only)
+    debounceTimer = xTimerCreate("DebounceTimer", pdMS_TO_TICKS(DEBOUNCE_TIME_MS), pdFALSE, nullptr, debounceTimerCallback);
+    longPressTimer = xTimerCreate("LongPressTimer", pdMS_TO_TICKS(LONG_PRESS_TIME_MS), pdFALSE, nullptr, longPressTimerCallback);
+    
     gpio_init(ENCODER_SW_GPIO);
     gpio_set_dir(ENCODER_SW_GPIO, GPIO_IN);
-
-    gpio_set_irq_enabled(ENCODER_CLK_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
-    gpio_set_irq_enabled(ENCODER_DC_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
+    gpio_pull_up(ENCODER_SW_GPIO); // Assuming active low button
     gpio_set_irq_enabled(ENCODER_SW_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
 
-    debounceTimer = xTimerCreate("debounce", pdMS_TO_TICKS(50), pdFALSE, nullptr, debounceTimerCallback);
-    longPressTimer = xTimerCreate("longpress", pdMS_TO_TICKS(500), pdFALSE, nullptr, longPressTimerCallback);
-
-    xTaskCreate(taskEntry, "InteractionTask", 1024, nullptr, tskIDLE_PRIORITY + 1, &taskHandle);
+    xTaskCreate(interactionTask, "Interaction", configMINIMAL_STACK_SIZE, this, 1, &taskHandle);
 }
 
 void InteractionService::taskEntry(void* param) {
-    InteractionType interaction;
+    Interaction interaction;
     while (true) {
         if (xQueueReceive(interactionQueue, &interaction, portMAX_DELAY) == pdPASS) {
             InteractionService::getInstance().handleInteraction(interaction);
@@ -53,93 +52,101 @@ void InteractionService::taskEntry(void* param) {
     }
 }
 
-void InteractionService::handleInteraction(InteractionType type) {
+void InteractionService::handleInteraction(Interaction interaction) {
     if (!uiService) return;
 
-    switch (type) {
-        case InteractionType::UP: {
-            uiService->handleEncoderUp(); 
-            BuzzerService::getInstance().playMediumTone(500);
-            break;
-        }
-        case InteractionType::DOWN: {
-            uiService->handleEncoderDown();
-            BuzzerService::getInstance().playMediumTone(500);
-            break;
-        }
-        case InteractionType::ENTER: {
+    switch (interaction) {
+        case Interaction::ENTER:
+            printf("ENTER COMMAND\n");
             uiService->handleEncoderPress();
-            BuzzerService::getInstance().playHighTone(500);
             break;
-        }
-        case InteractionType::BACK: {
+        case Interaction::BACK:
+            printf("BACK COMMAND\n");
             uiService->handleEncoderLongPress();
-            BuzzerService::getInstance().playLowTone(500);
             break;
-        }
+        case Interaction::UP:
+            printf("UP COMMAND\n");
+            uiService->handleEncoderUp();
+            break;
+        case Interaction::DOWN:
+            printf("DOWN COMMAND\n");
+            uiService->handleEncoderDown();
+            break;
         default: break;
     }
 }
 
 void InteractionService::gpioISR(uint gpio, uint32_t events) {
-    if (gpio == ENCODER_CLK_GPIO || gpio == ENCODER_DC_GPIO) {
-        handleEncoderISR(gpio, events);
-    } else if (gpio == ENCODER_SW_GPIO) {
-        handleButtonISR(gpio, events);
+    // Handle encoder
+    if (gpio == ENCODER_CLK_GPIO) {
+        static int32_t last_level_a = -1;
+        static int32_t lastEncoderPosition = 0;
+        int level_a = gpio_get(ENCODER_CLK_GPIO);
+        int level_b = gpio_get(ENCODER_DC_GPIO);
+
+        if (level_a != last_level_a) {
+            last_level_a = level_a;
+            if (level_a == 1) {
+                encoderPosition += (level_b == 1 ? 1 : -1);
+            } else {
+                encoderPosition += (level_b == 0 ? 1 : -1);
+            }
+
+            Interaction action = Interaction::NONE;
+            if (encoderPosition > lastEncoderPosition) {
+                action = Interaction::UP;
+            } else if (encoderPosition < lastEncoderPosition) {
+                action = Interaction::DOWN;
+            }
+            lastEncoderPosition = encoderPosition;
+
+            if (action != Interaction::NONE) {
+                xQueueSendFromISR(interactionQueue, &action, NULL);
+            }
+        }
     }
-}
-
-void InteractionService::handleEncoderISR(uint gpio, uint32_t events) {
-    static int32_t lastPosition = 0;
-    int levelA = gpio_get(ENCODER_CLK_GPIO);
-    int levelB = gpio_get(ENCODER_DC_GPIO);
-
-    if (levelA == 1) {
-        encoderPosition += (levelB == 1 ? 1 : -1);
-    } else {
-        encoderPosition += (levelB == 0 ? 1 : -1);
-    }
-
-    InteractionType action = InteractionType::NONE;
-    if (encoderPosition > lastPosition) {
-        action = InteractionType::UP;
-    } else if (encoderPosition < lastPosition) {
-        action = InteractionType::DOWN;
-    }
-    lastPosition = encoderPosition;
-
-    if (action != InteractionType::NONE) {
+    // Handle encoder button
+    else if (gpio == ENCODER_SW_GPIO) {
         BaseType_t higherPriorityTaskWoken = pdFALSE;
-        xQueueSendFromISR(interactionQueue, &action, &higherPriorityTaskWoken);
-        portYIELD_FROM_ISR(higherPriorityTaskWoken);
+        xTimerResetFromISR(debounceTimer, &higherPriorityTaskWoken);
     }
-}
-
-void InteractionService::handleButtonISR(uint gpio, uint32_t events) {
-    BaseType_t higherPriorityTaskWoken = pdFALSE;
-    xTimerResetFromISR(debounceTimer, &higherPriorityTaskWoken);
-    portYIELD_FROM_ISR(higherPriorityTaskWoken);
 }
 
 void InteractionService::debounceTimerCallback(TimerHandle_t xTimer) {
-    bool level = gpio_get(ENCODER_SW_GPIO) == 0; // active low
-    if (level != buttonState) {
-        buttonState = level;
-        if (level) {
-            longPressHandled = false;
-            xTimerStart(longPressTimer, 0);
+    auto& instance = getInstance();
+    bool currentLevel = gpio_get(ENCODER_SW_GPIO) == 0; // Assuming active low
+    
+    if (currentLevel != instance.buttonState) {
+        instance.buttonState = currentLevel;
+        if (currentLevel) {
+            xTimerStart(instance.longPressTimer, 0);
+            instance.longPressHandled = false;
         } else {
-            xTimerStop(longPressTimer, 0);
-            if (!longPressHandled) {
-                InteractionType type = InteractionType::ENTER;
-                xQueueSend(interactionQueue, &type, 0);
+            xTimerStop(instance.longPressTimer, 0);
+            if (!instance.longPressHandled) {
+                Interaction action = Interaction::ENTER;
+                xQueueSend(instance.interactionQueue, &action, 0);
             }
         }
     }
 }
 
 void InteractionService::longPressTimerCallback(TimerHandle_t xTimer) {
-    longPressHandled = true;
-    InteractionType type = InteractionType::BACK;
-    xQueueSend(interactionQueue, &type, 0);
+    auto& instance = getInstance();
+    instance.longPressHandled = true;
+    Interaction action = Interaction::BACK;
+    xQueueSend(instance.interactionQueue, &action, 0);
+}
+
+void InteractionService::interactionTask(void* params) {
+    auto* instance = static_cast<InteractionService*>(params);
+    Interaction interaction = Interaction::NONE;
+
+    while (1) {
+        if (xQueueReceive(instance->interactionQueue, &interaction, pdMS_TO_TICKS(QUEUE_WAIT_TIME_MS)) == pdPASS) {
+            instance->handleInteraction(interaction);
+        } else {
+            vPortYield();
+        }
+    }
 }

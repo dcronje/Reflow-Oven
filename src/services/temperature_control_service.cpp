@@ -118,6 +118,12 @@ void TemperatureControlService::setTargetTemperature(float temp) {
     targetTemp = temp;
 }
 
+void TemperatureControlService::stopHeating() {
+    targetTemp = 0.0f;
+    setHeaterPower(0);
+    setCoolingPower(100); // Open vents for maximum cooling
+}
+
 float TemperatureControlService::getTemperature() const {
     return currentTemp;
 }

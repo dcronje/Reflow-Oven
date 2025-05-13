@@ -1,8 +1,10 @@
 #pragma once
 
-#include "base_controller.h"
+#include "core/controller.h"
 #include "models/reflow_model.h"
-#include "services/ui_view_service.h"
+#include <lvgl.h>
+#include "FreeRTOS.h"
+#include "task.h"
 
 enum class ReflowState {
     PRECHECK,
@@ -10,31 +12,79 @@ enum class ReflowState {
     COMPLETE
 };
 
-class ReflowController : public BaseController {
+class ReflowController : public Controller {
 public:
     static ReflowController& getInstance();
 
+    // Controller interface methods
+    void render() override;
     void init() override;
+    void onEncoderPress() override;
+    void onEncoderUp() override;
+    void onEncoderDown() override;
+    void onEncoderLongPress() override;
+
+    // Navigation methods
     void returnToMainMenu();
 
-    void requestStart();          // Called by UI when user selects reflow
-    void confirmStart();          // Called by UI when user presses "start" (after precheck)
-    void cancel();
+    // Reflow control methods
+    void requestStart();          // Start precheck
+    void confirmStart();          // Confirm and start reflow process
+    void cancel();                // Cancel the reflow process
 
+    // Model access
     ReflowModel& getModel();
     const ReflowState& getState() const;
     float getElapsedMsInStep() const;
     float getCurrentTargetTemp() const;
 
-    void setCurrentTemp(float tempC); // Sensor-driven
+    // Temperature management
+    void setCurrentTemp(float tempC);
     float getCurrentTemp() const;
 
-protected:
-    void run() override;
-
 private:
-    ReflowController() = default;
+    ReflowController();
+    ~ReflowController();
 
+    // UI elements
+    lv_obj_t* precheckScreen = nullptr;  // Precheck screen UI
+    lv_obj_t* processScreen = nullptr;   // Running process UI
+    lv_obj_t* summaryScreen = nullptr;   // Completed process UI
+    lv_obj_t* currentContainer = nullptr; // Current active container
+    
+    // Chart for temperature display
+    lv_obj_t* tempChart = nullptr;
+    lv_chart_series_t* tempSeries = nullptr;
+    lv_chart_series_t* targetSeries = nullptr;
+    
+    // Status labels
+    lv_obj_t* statusLabel = nullptr;
+    lv_obj_t* tempLabel = nullptr;
+    lv_obj_t* timeLabel = nullptr;
+    lv_obj_t* stepLabel = nullptr;
+    
+    // Button handling
+    int selectedButton = 0;
+    bool confirmButtonActive = false;
+    
+    // Task for temperature control
+    TaskHandle_t reflowTask = nullptr;
+    static void reflowTaskFunc(void* param);
+    void runReflowProcess();
+    void updateReflowUI();
+    
+    // Helper functions
+    void renderPrecheckScreen();
+    void renderProcessScreen();
+    void renderSummaryScreen();
+    void switchToScreen(lv_obj_t* screen);
+    void updateButtonFocus();
+    
+    // Timer callback for UI updates
+    static void updateTimerCallback(lv_timer_t* timer);
+    lv_timer_t* updateTimer = nullptr;
+
+    // Model and state
     ReflowModel model;
     ReflowState state = ReflowState::PRECHECK;
 

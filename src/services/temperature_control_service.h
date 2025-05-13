@@ -13,6 +13,7 @@ public:
 
     void init();
     void setTargetTemperature(float temp);
+    void stopHeating();
 
     float getTemperature() const;
     uint8_t getHeaterPower() const;
