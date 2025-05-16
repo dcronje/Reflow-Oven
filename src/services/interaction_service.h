@@ -40,7 +40,6 @@ private:
 
     // Task entry points
     static void interactionTask(void* params);
-    static void taskEntry(void* param);
 
     // Static member variables
     static QueueHandle_t interactionQueue;

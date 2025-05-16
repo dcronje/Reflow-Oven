@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "core/controller.h"
 #include "lvgl.h"
 
@@ -7,9 +8,10 @@ class MainMenuController : public Controller {
 public:
     static MainMenuController& getInstance();
 
-    // Controller interface methods
-    void render() override;
+    void buildView(lv_obj_t* parent) override;
     void init() override;
+    void willUnload() override;
+
     void onEncoderPress() override;
     void onEncoderUp() override;
     void onEncoderDown() override;
@@ -24,11 +26,10 @@ public:
 
 private:
     MainMenuController() = default;
-    
-    // UI elements
+
     lv_obj_t* menu = nullptr;
+    std::vector<lv_obj_t*> buttons;
     int selectedIndex = 0;
-    
-    // Helper methods
+
     void updateButtonFocus();
 };

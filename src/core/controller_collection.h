@@ -18,13 +18,17 @@ public:
     void registerController(const std::string& id, Controller* controller);
     void navigateTo(const std::string& id, uint32_t duration = 300, TransitionDirection direction = TransitionDirection::NONE);
     Controller* currentController() const;
-    void update();
 
-    // Input forwarding
+    void update(); // optional
+
     void handleEncoderUp();
     void handleEncoderDown();
     void handleEncoderPress();
     void handleEncoderLongPress();
+
+    void markDirty();
+    bool isDirty() const;
+    void invalidateActiveController();
 
 private:
     std::unique_ptr<ControllerCollectionImpl> impl;

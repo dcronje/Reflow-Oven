@@ -29,39 +29,9 @@ void ElectronicsCoolingService::init() {
     pwm_init(slice_num, &config, true);
     pwm_set_gpio_level(COOLING_FAN_PWM_GPIO, 0); // Ensure fan starts off
 
-    gpio_set_function(COOLING_FAN_TACH_GPIO, GPIO_FUNC_SIO);
-    gpio_set_dir(COOLING_FAN_TACH_GPIO, GPIO_IN);
-    // Explicitly specifying the ISR function removes the global IRS function which prevents buttons from working (don't do it)
-    // gpio_set_irq_enabled_with_callback(gpio, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &tachometerISR);
-    gpio_set_irq_enabled(COOLING_FAN_TACH_GPIO, GPIO_IRQ_EDGE_FALL, true);
-
-    rpmTimer = xTimerCreate("RPM Timer", pdMS_TO_TICKS(1000), pdTRUE, this, &ElectronicsCoolingService::rpmTimerCallback);
-    if (rpmTimer == NULL)
-    {
-        // Handle error
-        printf("Failed to create RPM timer\n");
-    }
-    else
-    {
-        xTimerStart(rpmTimer, 0); // Start the timer
-    }
-
     xTaskCreate([](void* arg) {
         static_cast<ElectronicsCoolingService*>(arg)->electronicsCoolingTask();
     }, "ElectronicsCoolinTask", 1024, this, 1, nullptr);
-}
-
-void ElectronicsCoolingService::rpmTimerCallback(TimerHandle_t xTimer)
-{
-  auto* instance = static_cast<ElectronicsCoolingService*>(pvTimerGetTimerID(xTimer));
-
-  // Now you can access instance->pulseCount or any other member
-  uint64_t revolutions = instance->pulseCount / 2;
-  uint64_t rpm = revolutions * 60;
-
-  printf("RPM: %llu pulseCount: %d\n", rpm, instance->pulseCount);
-
-  instance->pulseCount = 0;
 }
 
 uint ElectronicsCoolingService::calculatePWMWrapValue(uint frequency)

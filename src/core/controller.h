@@ -1,37 +1,47 @@
-// controller.h
 #pragma once
 
-#include "view.h"
-#include <lvgl.h>
 #include <string>
+#include "lvgl.h"
 #include "types/transitions.h"
 
-// Forward declaration
+// Forward declarations
 class ControllerCollection;
 
 class Controller {
+protected:
+    lv_obj_t* rootView = nullptr;
+    ControllerCollection* controllerCollection = nullptr;
+
 public:
     virtual ~Controller() = default;
 
-    // Entry point to render this screen
-    virtual void render();
-    virtual void init();
+    void render(lv_obj_t* parent);
 
-    // Optional input handlers
-    virtual void onEncoderPress() {}
-    virtual void onEncoderLongPress() {}
+    // Responsible for creating the view if needed
+    virtual void buildView(lv_obj_t* parent) = 0;
+
+    // Return the root LVGL object of this controller
+    lv_obj_t* getView() const { return rootView; }
+
+    // Called when this controller is about to be hidden or removed
+    virtual void willUnload() {}
+
+    // Called when this controller becomes visible
+    virtual void didAppear() {}
+
+    // Optional input event handlers
     virtual void onEncoderUp() {}
     virtual void onEncoderDown() {}
+    virtual void onEncoderPress() {}
+    virtual void onEncoderLongPress() {}
 
-    lv_obj_t* screenObject() const { return screen; }
-    
-    // Set the controller collection
-    void setControllerCollection(ControllerCollection* collection) { controllerCollection = collection; }
-    
-    // Helper for navigation
-    void navigateTo(const std::string& controllerId, uint32_t duration = 300, TransitionDirection direction = TransitionDirection::NONE);
+    // Called once at startup
+    virtual void init() {}
 
-protected:
-    lv_obj_t* screen = nullptr;
-    ControllerCollection* controllerCollection = nullptr;
+    void setControllerCollection(ControllerCollection* collection) {
+        controllerCollection = collection;
+    }
+
+    void navigateTo(const std::string& controllerId, uint32_t duration = 300, TransitionDirection direction = TransitionDirection::SLIDE_IN_LEFT);
+    void invalidateView();
 };

@@ -41,6 +41,10 @@ TaskHandle_t watchdogTaskHandle = NULL;
 
 extern "C"
 {
+    extern "C" void vApplicationIdleHook(void) {
+        printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
+    }
+
     void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
     {
         printf("Stack Overflow in Task: %s\n", pcTaskName);
@@ -71,8 +75,10 @@ extern "C"
 
 // UI task - will run on core 0
 void uiTask(void* params) {
+    stdio_init_all(); // 🔁 Re-init on core 0
     printf("UI Task started on core %d\n", get_core_num());
-    
+    gpio_set_irq_callback(&sharedISR);
+    irq_set_enabled(IO_IRQ_BANK0, true);
     // Initialize UI-related services
     UIViewService::getInstance().init();
     InteractionService::getInstance().init();
@@ -119,13 +125,13 @@ void watchdogTask(void* params) {
 int main()
 {
     stdio_init_all();
-    gpio_set_irq_callback(&sharedISR);
+    // gpio_set_irq_callback(&sharedISR);
     printf("Starting Reflow Oven System on RP2350 (dual-core)...\n");
 
     // Initialize the watchdog with a timeout
     watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
 
-    // Create the UI task (core affinity set to core 0)
+    // // Create the UI task (core affinity set to core 0)
     BaseType_t result = xTaskCreate(uiTask, "UITask", UI_TASK_STACK_SIZE, 
                                    nullptr, UI_TASK_PRIORITY, &uiTaskHandle);
     configASSERT(result == pdPASS);

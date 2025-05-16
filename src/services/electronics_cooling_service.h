@@ -18,13 +18,8 @@ public:
 private:
     ElectronicsCoolingService();
     void electronicsCoolingTask();
-    static void rpmTimerCallback(TimerHandle_t xTimer);
     uint calculatePWMWrapValue(uint frequency);
-
-    TimerHandle_t rpmTimer;
 
     volatile int currentFanSpeed = 0;
     volatile int targetFanSpeed = 0;
-    volatile uint64_t fanRPM = 0;
-    volatile uint64_t pulseCount = 0;
 }; 

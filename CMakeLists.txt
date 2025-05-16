@@ -70,7 +70,25 @@ file(REMOVE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/lvgl/src/draw/sw/blend/neon/lv_blend_neon.S
 )
 
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS/FreeRTOS-Kernel/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/FreeRTOS/FreeRTOS-Kernel/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ/non_secure
+)
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/lvgl)
+
+target_include_directories(lvgl PUBLIC
+    ${PICO_SDK_PATH}/src/common/pico_base/include
+    ${PICO_SDK_PATH}/src/common/pico_base_headers/include
+    ${CMAKE_BINARY_DIR}/generated/pico_base
+)
+
+target_link_libraries(lvgl PUBLIC
+    pico_base_headers
+    pico_base
+    hardware_sync
+    pico_runtime
+)
 
 # Add executable. Default name is the project name, version 0.1
 

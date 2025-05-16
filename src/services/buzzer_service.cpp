@@ -7,7 +7,7 @@ BuzzerService& BuzzerService::getInstance() {
     return instance;
 }
 
-BuzzerService::BuzzerService() : buzzerPin(BUZZER_PIN) {
+BuzzerService::BuzzerService() : buzzerPin(BUZZER_GPIO) {
     commandQueue = xQueueCreate(10, sizeof(BuzzerCommand));
 }
 

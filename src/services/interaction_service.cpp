@@ -31,6 +31,9 @@ void InteractionService::init() {
     gpio_set_dir(ENCODER_CLK_GPIO, GPIO_IN);
     gpio_set_dir(ENCODER_DC_GPIO, GPIO_IN);
 
+    gpio_set_irq_enabled(ENCODER_CLK_GPIO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true); // ✅ REQUIRED
+    gpio_set_irq_enabled(ENCODER_DC_GPIO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);  // optional, only if needed
+
     // Button pin setup (encoder switch only)
     debounceTimer = xTimerCreate("DebounceTimer", pdMS_TO_TICKS(DEBOUNCE_TIME_MS), pdFALSE, nullptr, debounceTimerCallback);
     longPressTimer = xTimerCreate("LongPressTimer", pdMS_TO_TICKS(LONG_PRESS_TIME_MS), pdFALSE, nullptr, longPressTimerCallback);
@@ -40,16 +43,7 @@ void InteractionService::init() {
     gpio_pull_up(ENCODER_SW_GPIO); // Assuming active low button
     gpio_set_irq_enabled(ENCODER_SW_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
 
-    xTaskCreate(interactionTask, "Interaction", configMINIMAL_STACK_SIZE, this, 1, &taskHandle);
-}
-
-void InteractionService::taskEntry(void* param) {
-    Interaction interaction;
-    while (true) {
-        if (xQueueReceive(interactionQueue, &interaction, portMAX_DELAY) == pdPASS) {
-            InteractionService::getInstance().handleInteraction(interaction);
-        }
-    }
+    xTaskCreate(interactionTask, "Interaction", 2048, this, 1, &taskHandle);
 }
 
 void InteractionService::handleInteraction(Interaction interaction) {
@@ -142,11 +136,9 @@ void InteractionService::interactionTask(void* params) {
     auto* instance = static_cast<InteractionService*>(params);
     Interaction interaction = Interaction::NONE;
 
-    while (1) {
-        if (xQueueReceive(instance->interactionQueue, &interaction, pdMS_TO_TICKS(QUEUE_WAIT_TIME_MS)) == pdPASS) {
+    while (true) {
+        if (xQueueReceive(instance->interactionQueue, &interaction, portMAX_DELAY) == pdPASS) {
             instance->handleInteraction(interaction);
-        } else {
-            vPortYield();
         }
     }
 }

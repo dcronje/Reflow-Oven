@@ -1,14 +1,7 @@
-// controller_collection.cpp
 #include "controller_collection.h"
 #include "controller.h"
-#include "lvgl.h"
 #include <map>
 
-// Forward declarations for lambda functions
-static void setXPosition(void* obj, int32_t v);
-static void setOpacity(void* obj, int32_t v);
-
-// Lambda function implementations
 static void setXPosition(void* obj, int32_t v) {
     lv_obj_set_x(static_cast<lv_obj_t*>(obj), v);
 }
@@ -22,58 +15,67 @@ public:
     std::map<std::string, Controller*> controllers;
     Controller* activeController = nullptr;
     lv_obj_t* container = nullptr;
+    bool dirty = false;
 
     void animateTransition(Controller* from, Controller* to, uint32_t duration, TransitionDirection direction) {
         if (!to || !container) return;
 
-        lv_obj_t* oldScreen = from ? from->screenObject() : nullptr;
+        lv_obj_t* oldView = from ? from->getView() : nullptr;
 
-        // Create and render the new controller view
-        to->render();
-        lv_obj_t* newScreen = to->screenObject();
-        lv_obj_set_parent(newScreen, container);
-
-        if (direction == TransitionDirection::NONE || !oldScreen) {
-            lv_obj_move_foreground(newScreen);
+        // If no transition or nothing to animate, just replace
+        if (direction == TransitionDirection::NONE || !oldView) {
+            if (from) from->willUnload();
+            lv_obj_clean(container);
+            to->render(container);
+            to->didAppear();
             return;
         }
 
-        // Animate transition based on direction
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_time(&a, duration);
+        // Render new view off-screen for animation
+        to->render(container);
+        lv_obj_t* newView = to->getView();
 
         switch (direction) {
             case TransitionDirection::SLIDE_IN_LEFT:
-                lv_obj_set_x(newScreen, -lv_obj_get_width(container));
-                lv_anim_set_var(&a, newScreen);
-                lv_anim_set_exec_cb(&a, setXPosition);
-                lv_anim_set_values(&a, -lv_obj_get_width(container), 0);
+                lv_obj_set_x(newView, -lv_obj_get_width(container));
                 break;
             case TransitionDirection::SLIDE_OUT_LEFT:
-                if (oldScreen) lv_obj_set_x(oldScreen, 0);
-                lv_anim_set_var(&a, oldScreen);
-                lv_anim_set_exec_cb(&a, setXPosition);
-                lv_anim_set_values(&a, 0, -lv_obj_get_width(container));
+                lv_obj_set_x(newView, 0); // animate old out, new stays
                 break;
             case TransitionDirection::FADE:
-                lv_obj_set_style_opa(newScreen, LV_OPA_TRANSP, 0);
-                lv_anim_set_var(&a, newScreen);
-                lv_anim_set_exec_cb(&a, setOpacity);
-                lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+                lv_obj_set_style_opa(newView, LV_OPA_TRANSP, 0);
                 break;
             default:
                 break;
         }
 
-        lv_anim_start(&a);
-        lv_obj_move_foreground(newScreen);
+        // Setup animation
+        lv_anim_t anim;
+        lv_anim_init(&anim);
+        lv_anim_set_time(&anim, duration);
+
+        if (direction == TransitionDirection::SLIDE_IN_LEFT) {
+            lv_anim_set_var(&anim, newView);
+            lv_anim_set_exec_cb(&anim, setXPosition);
+            lv_anim_set_values(&anim, -lv_obj_get_width(container), 0);
+        } else if (direction == TransitionDirection::SLIDE_OUT_LEFT && oldView) {
+            lv_anim_set_var(&anim, oldView);
+            lv_anim_set_exec_cb(&anim, setXPosition);
+            lv_anim_set_values(&anim, 0, -lv_obj_get_width(container));
+        } else if (direction == TransitionDirection::FADE) {
+            lv_anim_set_var(&anim, newView);
+            lv_anim_set_exec_cb(&anim, setOpacity);
+            lv_anim_set_values(&anim, LV_OPA_TRANSP, LV_OPA_COVER);
+        }
+
+        lv_anim_start(&anim);
+
+        if (from) from->willUnload();
+        to->didAppear();
     }
 };
 
-ControllerCollection::ControllerCollection() : impl(new ControllerCollectionImpl()) {
-}
-
+ControllerCollection::ControllerCollection() : impl(new ControllerCollectionImpl()) {}
 ControllerCollection::~ControllerCollection() = default;
 
 void ControllerCollection::init(lv_obj_t* parent, int x, int y, int width, int height) {
@@ -104,10 +106,6 @@ Controller* ControllerCollection::currentController() const {
     return impl->activeController;
 }
 
-void ControllerCollection::update() {
-    if (impl->activeController) impl->activeController->render();
-}
-
 void ControllerCollection::handleEncoderUp() {
     if (impl->activeController) impl->activeController->onEncoderUp();
 }
@@ -122,4 +120,24 @@ void ControllerCollection::handleEncoderPress() {
 
 void ControllerCollection::handleEncoderLongPress() {
     if (impl->activeController) impl->activeController->onEncoderLongPress();
+}
+
+void ControllerCollection::markDirty() {
+    impl->dirty = true;
+}
+
+bool ControllerCollection::isDirty() const {
+    return impl->dirty;
+}
+
+void ControllerCollection::invalidateActiveController() {
+    if (impl->activeController && impl->container) {
+        lv_obj_clean(impl->container);
+        impl->activeController->render(impl->container);
+        impl->dirty = false;
+    }
+}
+
+void ControllerCollection::update() {
+    // Optional future hook
 }

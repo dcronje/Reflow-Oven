@@ -1,0 +1,601 @@
+#include <stdio.h>
+#include <algorithm> // For std::min function
+#include "pico/stdlib.h"
+#include "hardware/spi.h"
+#include "hardware/pwm.h"
+#include "hardware/gpio.h"
+#include "FreeRTOS.h"
+#include "task.h"  // Include for TaskHandle_t definition
+
+// For LVGL integration, we'll use the LVGL driver directly
+#include "lib/lvgl/src/lvgl.h"
+#include "lib/lvgl/src/drivers/display/st7789/lv_st7789.h"
+
+// FreeRTOS hooks - required to fix linker errors
+extern "C" {
+    void vApplicationMallocFailedHook(void) {
+        printf("Malloc Failed!\n");
+        while (true) {
+            tight_loop_contents();
+        }
+    }
+    
+    void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
+        printf("Stack Overflow in Task: %s\n", pcTaskName);
+        while (true) {
+            tight_loop_contents();
+        }
+    }
+}
+
+// Waveshare 2" LCD Display Constants
+#define DISPLAY_WIDTH 320
+#define DISPLAY_HEIGHT 240
+
+// Pin Definitions for RP2350
+#define DISPLAY_SPI_PORT spi1
+#define DISPLAY_SPI_FREQ 20000000  // 20MHz
+
+// Pins from constants.h
+#define DISPLAY_BACKLIGHT_GPIO 10 // GPIO pin for the display backlight
+#define DISPLAY_SPI_RST_GPIO 11   // Reset (RST)
+#define DISPLAY_SPI_DC_GPIO 12    // Data/Command (DC)
+#define DISPLAY_SPI_CS_GPIO 13    // Chip Select (CS)
+#define DISPLAY_SPI_CLK_GPIO 14   // SPI clock (SCK)
+#define DISPLAY_SPI_MOSI_GPIO 15  // SPI data (MOSI)
+
+// Display Colors
+#define WHITE 0xFFFF
+#define BLACK 0x0000
+#define BLUE  0x001F
+#define RED   0xF800
+#define GREEN 0x07E0
+
+// ST7789 Commands
+#define ST7789_SWRESET 0x01
+#define ST7789_SLPOUT  0x11
+#define ST7789_NORON   0x13
+#define ST7789_INVON   0x21
+#define ST7789_DISPON  0x29
+#define ST7789_CASET   0x2A
+#define ST7789_RASET   0x2B
+#define ST7789_RAMWR   0x2C
+#define ST7789_MADCTL  0x36
+#define ST7789_COLMOD  0x3A
+
+// Global variables
+static volatile float current_temperature = 25.0f;  // Current temperature in Celsius
+static volatile bool reflow_running = false;        // Reflow process status
+static lv_obj_t* temp_label = NULL;                // Temperature label
+static lv_obj_t* status_label = NULL;              // Status label
+static lv_obj_t* temp_arc = NULL;                  // Temperature arc (gauge)
+static lv_obj_t* start_stop_label = NULL;          // Button label
+
+// FreeRTOS task handles
+static TaskHandle_t lvgl_task_handle = NULL;
+static TaskHandle_t temp_control_task_handle = NULL;
+
+// Function Prototypes
+void reset_display();
+void st7789_send_command(uint8_t cmd);
+void st7789_send_data(const uint8_t* data, size_t len);
+void lvgl_st7789_cmd_cb(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, 
+                      const uint8_t* param, size_t param_size);
+void lvgl_st7789_color_cb(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, 
+                        uint8_t* param, size_t param_size);
+bool init_display();
+void set_address_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+void fill_display(uint16_t color);
+void create_ui();
+void lvgl_task(void* pvParameters);
+void temperature_control_task(void* pvParameters);
+static void btn_event_cb(lv_event_t* e);
+
+// Reset display
+void reset_display() {
+    printf("Resetting display...\n");
+    
+    gpio_put(DISPLAY_SPI_RST_GPIO, 1);
+    sleep_ms(50);
+    gpio_put(DISPLAY_SPI_RST_GPIO, 0);
+    sleep_ms(120);
+    gpio_put(DISPLAY_SPI_RST_GPIO, 1);
+    sleep_ms(120);
+}
+
+// Send command to display (for direct ST7789 control)
+void st7789_send_command(uint8_t cmd) {
+    gpio_put(DISPLAY_SPI_DC_GPIO, 0);  // Command mode
+    gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+    spi_write_blocking(DISPLAY_SPI_PORT, &cmd, 1);
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+}
+
+// Send data to display (for direct ST7789 control)
+void st7789_send_data(const uint8_t* data, size_t len) {
+    gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
+    gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+    spi_write_blocking(DISPLAY_SPI_PORT, data, len);
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+}
+
+// LVGL callback for sending commands to the display
+void lvgl_st7789_cmd_cb(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, 
+                        const uint8_t* param, size_t param_size) {
+    // Send the command
+    gpio_put(DISPLAY_SPI_DC_GPIO, 0);  // Command mode
+    gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+    spi_write_blocking(DISPLAY_SPI_PORT, cmd, cmd_size);
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+    
+    // Send parameters if any
+    if (param && param_size > 0) {
+        gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
+        gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+        spi_write_blocking(DISPLAY_SPI_PORT, param, param_size);
+        gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+    }
+}
+
+// LVGL callback for sending color data to the display
+void lvgl_st7789_color_cb(lv_display_t* disp, const uint8_t* cmd, size_t cmd_size, 
+                          uint8_t* param, size_t param_size) {
+    // Send the command if provided
+    if (cmd && cmd_size > 0) {
+        gpio_put(DISPLAY_SPI_DC_GPIO, 0);  // Command mode
+        gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+        spi_write_blocking(DISPLAY_SPI_PORT, cmd, cmd_size);
+        gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+    }
+    
+    // Send color data
+    gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
+    gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+    spi_write_blocking(DISPLAY_SPI_PORT, param, param_size);
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+}
+
+// Initialize display with ST7789
+bool init_display() {
+    printf("Initializing 2\" LCD Display (ST7789)...\n");
+    
+    // Hardware reset
+    reset_display();
+    
+    // Software reset
+    st7789_send_command(ST7789_SWRESET);
+    sleep_ms(150);
+    
+    // Sleep out
+    st7789_send_command(ST7789_SLPOUT);
+    sleep_ms(500);
+    
+    // Memory Data Access Control
+    st7789_send_command(ST7789_MADCTL);
+    uint8_t data = 0x70;  // Adjusted for 320x240 orientation (0x70 instead of 0xA0)
+    st7789_send_data(&data, 1);
+    
+    // Set color mode (16-bit per pixel)
+    st7789_send_command(ST7789_COLMOD);
+    data = 0x05;
+    st7789_send_data(&data, 1);
+    
+    // Porch Setting
+    st7789_send_command(0xB2);
+    uint8_t b2data[5] = {0x0C, 0x0C, 0x00, 0x33, 0x33};
+    st7789_send_data(b2data, 5);
+    
+    // Gate Control
+    st7789_send_command(0xB7);
+    data = 0x35;
+    st7789_send_data(&data, 1);
+    
+    // VCOM Setting
+    st7789_send_command(0xBB);
+    data = 0x19;
+    st7789_send_data(&data, 1);
+    
+    // LCM Control
+    st7789_send_command(0xC0);
+    data = 0x2C;
+    st7789_send_data(&data, 1);
+    
+    // VDV and VRH Command Enable
+    st7789_send_command(0xC2);
+    data = 0x01;
+    st7789_send_data(&data, 1);
+    
+    // VRH Set
+    st7789_send_command(0xC3);
+    data = 0x12;
+    st7789_send_data(&data, 1);
+    
+    // VDV Set
+    st7789_send_command(0xC4);
+    data = 0x20;
+    st7789_send_data(&data, 1);
+    
+    // Frame Rate Control in Normal Mode
+    st7789_send_command(0xC6);
+    data = 0x0F;
+    st7789_send_data(&data, 1);
+    
+    // Power Control 1
+    st7789_send_command(0xD0);
+    uint8_t d0data[2] = {0xA4, 0xA1};
+    st7789_send_data(d0data, 2);
+    
+    // Positive Voltage Gamma Control
+    st7789_send_command(0xE0);
+    uint8_t e0data[14] = {0xD0, 0x08, 0x11, 0x08, 0x0C, 0x15, 0x39, 0x33, 0x50, 0x36, 0x13, 0x14, 0x29, 0x2D};
+    st7789_send_data(e0data, 14);
+    
+    // Negative Voltage Gamma Control
+    st7789_send_command(0xE1);
+    uint8_t e1data[14] = {0xD0, 0x08, 0x10, 0x08, 0x06, 0x06, 0x39, 0x44, 0x51, 0x0B, 0x16, 0x14, 0x2F, 0x31};
+    st7789_send_data(e1data, 14);
+    
+    // Display Inversion On
+    st7789_send_command(ST7789_INVON);
+    sleep_ms(10);
+    
+    // Normal Display Mode
+    st7789_send_command(ST7789_NORON);
+    sleep_ms(10);
+    
+    // Display On
+    st7789_send_command(ST7789_DISPON);
+    sleep_ms(100);
+    
+    printf("Display initialization complete\n");
+    return true;
+}
+
+// Set address window (for direct drawing)
+void set_address_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+    // Set X address
+    st7789_send_command(ST7789_CASET);
+    uint8_t caset[4] = {
+        (uint8_t)(x0 >> 8),
+        (uint8_t)(x0 & 0xFF),
+        (uint8_t)(x1 >> 8),
+        (uint8_t)(x1 & 0xFF)
+    };
+    st7789_send_data(caset, 4);
+    
+    // Set Y address
+    st7789_send_command(ST7789_RASET);
+    uint8_t raset[4] = {
+        (uint8_t)(y0 >> 8),
+        (uint8_t)(y0 & 0xFF),
+        (uint8_t)(y1 >> 8),
+        (uint8_t)(y1 & 0xFF)
+    };
+    st7789_send_data(raset, 4);
+}
+
+// Fill display with solid color (for direct drawing)
+void fill_display(uint16_t color) {
+    // Set address window to entire display
+    set_address_window(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    
+    // Memory write command
+    st7789_send_command(ST7789_RAMWR);
+    
+    // Convert color to bytes
+    uint8_t color_high = (color >> 8) & 0xFF;
+    uint8_t color_low = color & 0xFF;
+    uint8_t color_bytes[2] = {color_high, color_low};
+    
+    // Fill display with color
+    gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
+    gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+    
+    for (int i = 0; i < DISPLAY_WIDTH * DISPLAY_HEIGHT; i++) {
+        spi_write_blocking(DISPLAY_SPI_PORT, color_bytes, 2);
+    }
+    
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+}
+
+// FreeRTOS Task for LVGL handling
+void lvgl_task(void* pvParameters) {
+    printf("LVGL task started\n");
+    
+    uint32_t last_update = 0;
+    char temp_str[16];
+    
+    while (true) {
+        // Get current time
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        
+        // Call LVGL timer handler (every 5ms)
+        if (now - last_update >= 5) {
+            lv_timer_handler();
+            last_update = now;
+            
+            // Update temperature display (every 500ms)
+            if (now % 500 < 10 && temp_label != NULL) {
+                sprintf(temp_str, "%.1f°C", current_temperature);
+                lv_label_set_text(temp_label, temp_str);
+                
+                // Update temperature arc if available
+                if (temp_arc != NULL) {
+                    // Scale temperature to arc range (0-300°C)
+                    int temp_val = (int)current_temperature;
+                    if (temp_val > 300) temp_val = 300;
+                    if (temp_val < 0) temp_val = 0;
+                    lv_arc_set_value(temp_arc, temp_val);
+                }
+                
+                // Update status label if available
+                if (status_label != NULL) {
+                    if (reflow_running) {
+                        lv_label_set_text(status_label, "RUNNING");
+                        lv_obj_set_style_text_color(status_label, lv_color_hex(0x00FF00), 0); // Green
+                    } else {
+                        lv_label_set_text(status_label, "STANDBY");
+                        lv_obj_set_style_text_color(status_label, lv_color_hex(0xFFFF00), 0); // Yellow
+                    }
+                }
+            }
+        }
+        
+        // Give other tasks a chance to run
+        vTaskDelay(1);
+    }
+}
+
+// Simulated reflow temperature profile
+// These are time points (in seconds) and target temperatures
+const float reflow_profile[][2] = {
+    {0.0f, 25.0f},     // Start at room temperature
+    {60.0f, 150.0f},   // Ramp to 150°C in 60 seconds (preheat)
+    {120.0f, 180.0f},  // Ramp to 180°C in 60 more seconds (soak)
+    {150.0f, 240.0f},  // Ramp to 240°C in 30 seconds (reflow)
+    {180.0f, 240.0f},  // Hold at 240°C for 30 seconds
+    {240.0f, 50.0f},   // Cool down to 50°C in 60 seconds
+    {300.0f, 25.0f}    // Cool to room temperature
+};
+
+// Temperature control task
+void temperature_control_task(void* pvParameters) {
+    printf("Temperature control task started\n");
+    
+    uint32_t profile_start_time = 0;
+    uint32_t current_time = 0;
+    float target_temp = 25.0f;
+    
+    while (true) {
+        // Get current time in seconds
+        current_time = to_ms_since_boot(get_absolute_time()) / 1000;
+        
+        if (reflow_running) {
+            // If just started, record start time
+            if (profile_start_time == 0) {
+                profile_start_time = current_time;
+                printf("Reflow process started\n");
+            }
+            
+            // Calculate elapsed time since profile start
+            uint32_t elapsed_seconds = current_time - profile_start_time;
+            
+            // Find target temperature based on elapsed time
+            target_temp = 25.0f; // Default to room temp
+            
+            for (int i = 0; i < sizeof(reflow_profile) / sizeof(reflow_profile[0]) - 1; i++) {
+                float t1 = reflow_profile[i][0];
+                float t2 = reflow_profile[i + 1][0];
+                
+                if (elapsed_seconds >= t1 && elapsed_seconds <= t2) {
+                    float temp1 = reflow_profile[i][1];
+                    float temp2 = reflow_profile[i + 1][1];
+                    
+                    // Linear interpolation between profile points
+                    target_temp = temp1 + (temp2 - temp1) * (elapsed_seconds - t1) / (t2 - t1);
+                    break;
+                }
+            }
+            
+            // Check if profile is complete
+            if (elapsed_seconds >= reflow_profile[sizeof(reflow_profile) / sizeof(reflow_profile[0]) - 1][0]) {
+                printf("Reflow process completed\n");
+                reflow_running = false;
+                profile_start_time = 0;
+            }
+        } else {
+            // When not running, reset profile start time
+            profile_start_time = 0;
+            target_temp = 25.0f; // Room temperature when idle
+        }
+        
+        // Simulate temperature control with simple approach
+        // In a real implementation, this would include PID control
+        if (current_temperature < target_temp) {
+            // Heat up (limited rate: 3°C per second max)
+            current_temperature += std::min(3.0f, (target_temp - current_temperature) / 10.0f);
+        } else if (current_temperature > target_temp) {
+            // Cool down (limited rate: 2°C per second max)
+            current_temperature -= std::min(2.0f, (current_temperature - target_temp) / 15.0f);
+        }
+        
+        // Delay for 100ms (10Hz update rate)
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+// Button event callback
+static void btn_event_cb(lv_event_t* e) {
+    if (reflow_running) {
+        // Stop the reflow process
+        reflow_running = false;
+        if (start_stop_label) {
+            lv_label_set_text(start_stop_label, "START");
+        }
+    } else {
+        // Start the reflow process
+        reflow_running = true;
+        if (start_stop_label) {
+            lv_label_set_text(start_stop_label, "STOP");
+        }
+    }
+}
+
+// Create LVGL UI
+void create_ui() {
+    printf("Creating LVGL UI...\n");
+    
+    // Get active screen
+    lv_obj_t* scr = lv_scr_act();
+    
+    // Create a title label
+    lv_obj_t* title = lv_label_create(scr);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
+    lv_label_set_text(title, "REFLOW OVEN");
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
+    
+    // Create status label
+    status_label = lv_label_create(scr);
+    lv_obj_set_style_text_font(status_label, &lv_font_montserrat_16, 0);
+    lv_label_set_text(status_label, "STANDBY");
+    lv_obj_set_style_text_color(status_label, lv_color_hex(0xFFFF00), 0); // Yellow
+    lv_obj_align(status_label, LV_ALIGN_TOP_MID, 0, 40);
+    
+    // Create a temperature meter (arc)
+    temp_arc = lv_arc_create(scr);
+    lv_obj_set_size(temp_arc, 180, 180);
+    lv_arc_set_rotation(temp_arc, 135);
+    lv_arc_set_bg_angles(temp_arc, 0, 270);
+    lv_arc_set_range(temp_arc, 0, 300); // 0-300°C
+    lv_arc_set_value(temp_arc, 25);     // Room temperature
+    lv_obj_align(temp_arc, LV_ALIGN_CENTER, 0, 10);
+    
+    // Create temperature value label
+    temp_label = lv_label_create(scr);
+    lv_obj_set_style_text_font(temp_label, &lv_font_montserrat_24, 0);
+    lv_label_set_text(temp_label, "25.0°C");
+    lv_obj_align(temp_label, LV_ALIGN_CENTER, 0, 10);
+    
+    // Create a start/stop button
+    lv_obj_t* btn = lv_btn_create(scr);
+    lv_obj_set_size(btn, 120, 50);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -20);
+    lv_obj_add_event_cb(btn, btn_event_cb, LV_EVENT_CLICKED, NULL);
+    
+    // Add label to button and store it in our global
+    start_stop_label = lv_label_create(btn);
+    lv_label_set_text(start_stop_label, "START");
+    lv_obj_center(start_stop_label);
+    
+    printf("LVGL UI creation complete\n");
+}
+
+int main() {
+    // Initialize stdio for debug output
+    stdio_init_all();
+    sleep_ms(2000);  // Wait for serial to connect
+    printf("\n\n--- Starting Reflow Oven Controller with LVGL on RP2040 ---\n");
+
+    // Initialize SPI
+    printf("Initializing SPI...\n");
+    spi_init(DISPLAY_SPI_PORT, DISPLAY_SPI_FREQ);
+    gpio_set_function(DISPLAY_SPI_CLK_GPIO, GPIO_FUNC_SPI);
+    gpio_set_function(DISPLAY_SPI_MOSI_GPIO, GPIO_FUNC_SPI);
+
+    // Initialize control pins
+    gpio_init(DISPLAY_SPI_CS_GPIO);
+    gpio_set_dir(DISPLAY_SPI_CS_GPIO, GPIO_OUT);
+    gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // CS high
+
+    gpio_init(DISPLAY_SPI_DC_GPIO);
+    gpio_set_dir(DISPLAY_SPI_DC_GPIO, GPIO_OUT);
+    gpio_put(DISPLAY_SPI_DC_GPIO, 0);  // Command mode
+
+    gpio_init(DISPLAY_SPI_RST_GPIO);
+    gpio_set_dir(DISPLAY_SPI_RST_GPIO, GPIO_OUT);
+    gpio_put(DISPLAY_SPI_RST_GPIO, 1);  // Not resetting
+
+    // Initialize backlight
+    printf("Initializing backlight...\n");
+    gpio_init(DISPLAY_BACKLIGHT_GPIO);
+    gpio_set_dir(DISPLAY_BACKLIGHT_GPIO, GPIO_OUT);
+    gpio_put(DISPLAY_BACKLIGHT_GPIO, 1);  // Turn backlight on
+
+    // Initialize display hardware
+    if (!init_display()) {
+        printf("Failed to initialize display hardware!\n");
+        return -1;
+    }
+
+    fill_display(BLACK); // Clear screen to black
+
+    // Initialize LVGL
+    printf("Initializing LVGL...\n");
+    lv_init();
+
+    // Create display buffer
+    static lv_color_t buf1[DISPLAY_WIDTH * 20];
+    lv_display_t* display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
+    lv_display_set_buffers(
+        display,
+        buf1,
+        NULL,
+        sizeof(buf1),
+        LV_DISPLAY_RENDER_MODE_PARTIAL
+    );
+
+    // Set flush callback to push pixels to ST7789
+    lv_display_set_flush_cb(display, [](lv_display_t* disp, const lv_area_t* area, uint8_t* color_p) {
+        set_address_window(area->x1, area->y1, area->x2, area->y2);
+
+        st7789_send_command(ST7789_RAMWR);
+
+        gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
+        gpio_put(DISPLAY_SPI_CS_GPIO, 0);  // Select display
+
+        size_t len = lv_area_get_width(area) * lv_area_get_height(area) * 2; // RGB565: 2 bytes/pixel
+        spi_write_blocking(DISPLAY_SPI_PORT, color_p, len);
+
+        gpio_put(DISPLAY_SPI_CS_GPIO, 1);  // Deselect display
+        lv_display_flush_ready(disp);
+    });
+
+    // Create the UI
+    create_ui();
+
+    printf("Creating FreeRTOS tasks...\n");
+
+    // Create LVGL update task
+    if (xTaskCreate(
+            lvgl_task,
+            "LVGL_Task",
+            2048,
+            NULL,
+            2,
+            &lvgl_task_handle
+        ) != pdPASS) {
+        printf("Failed to create LVGL task!\n");
+        return -1;
+    }
+
+    // Create temperature control task
+    if (xTaskCreate(
+            temperature_control_task,
+            "Temp_Control",
+            1024,
+            NULL,
+            1,
+            &temp_control_task_handle
+        ) != pdPASS) {
+        printf("Failed to create temperature control task!\n");
+        return -1;
+    }
+
+    printf("Starting FreeRTOS scheduler...\n");
+    vTaskStartScheduler();
+
+    // Should never reach here
+    printf("ERROR: Scheduler failed to start!\n");
+    return -1;
+}
