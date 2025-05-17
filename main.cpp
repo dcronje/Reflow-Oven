@@ -79,8 +79,18 @@ void uiTask(void* params) {
     printf("UI Task started on core %d\n", get_core_num());
     gpio_set_irq_callback(&sharedISR);
     irq_set_enabled(IO_IRQ_BANK0, true);
+    
     // Initialize UI-related services
-    UIViewService::getInstance().init();
+    UIViewService& uiService = UIViewService::getInstance();
+    uiService.init();
+    
+    // Create and initialize RootView
+    auto rootView = std::make_unique<RootView>();
+    rootView->init(uiService.getDisplay());
+    
+    // Register RootView as the encoder event handler
+    uiService.registerEncoderEventHandler(rootView.get());
+    
     InteractionService::getInstance().init();
     BuzzerService::getInstance().init();
     

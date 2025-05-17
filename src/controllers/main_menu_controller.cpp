@@ -1,6 +1,7 @@
 #include "main_menu_controller.h"
 #include "services/door_service.h"
 #include "services/buzzer_service.h"
+#include "ui/cyberpunk_theme.h"
 
 MainMenuController& MainMenuController::getInstance() {
     static MainMenuController instance;
@@ -9,30 +10,45 @@ MainMenuController& MainMenuController::getInstance() {
 
 void MainMenuController::buildView(lv_obj_t* parent) {
     printf("Building Main Menu View\n");
-    
+
+    CyberpunkTheme::init();
     buttons.clear();
     printf("Cleared buttons\n");
 
-    // Create scrollable menu inside parent
-    menu = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(menu, lv_obj_get_width(lv_scr_act()), lv_obj_get_height(lv_scr_act()));
-    lv_obj_set_style_bg_color(menu, lv_color_hex(0x202020), LV_PART_MAIN);
+    // Root container (fills screen, vertical layout)
+    lv_obj_t* root = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(root, lv_pct(100), lv_pct(100));
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_all(root, 0, 0);
+    lv_obj_set_style_margin_all(root, 0, 0);
+    lv_obj_set_style_border_width(root, 0, 0);
 
-    // Set flex layout and enable vertical scrolling
+    // Title bar (fixed, not scrollable)
+    lv_obj_t* title = CyberpunkTheme::createStripedTitleLabel(root, "REFLOW OVEN");
+    lv_obj_clear_flag(title, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_margin_bottom(title, 0, 0);
+    lv_obj_set_style_pad_bottom(title, 0, 0);
+
+    // Scrollable button list container
+    menu = lv_obj_create(root);
+    lv_obj_remove_style_all(menu);
+    lv_obj_set_width(menu, DISPLAY_WIDTH);
+    lv_obj_set_flex_grow(menu, 1);
+    lv_obj_set_scroll_dir(menu, LV_DIR_VER);
+    lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_START);
+    lv_obj_set_scrollbar_mode(menu, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_layout(menu, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(menu, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(menu, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scroll_dir(menu, LV_DIR_VER);  // Enable vertical scrolling
-    lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_CENTER); // Optional: snap to buttons
-    lv_obj_set_style_pad_row(menu, 15, 0); // Increased row padding for better spacing between buttons
-    lv_obj_set_style_pad_all(menu, 5, 0); // Reduced outer padding from 10 to 5
-
-    // Title label
-    lv_obj_t* title = lv_label_create(menu);
-    lv_label_set_text(title, "Reflow Oven");
-    lv_obj_set_style_text_font(title, LV_FONT_DEFAULT, 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_pad_bottom(title, 20, 0);
+    lv_obj_set_flex_align(menu, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(menu, 15, 0);
+    lv_obj_set_style_pad_bottom(menu, 20, 0);  // Bottom breathing room
+    lv_obj_set_style_pad_top(menu, 0, 0);
+    lv_obj_set_style_border_width(menu, 0, 0);
+    lv_obj_set_style_bg_color(menu, CYBER_COLOR_BG, 0);
+    lv_obj_set_style_bg_opa(menu, LV_OPA_COVER, 0);
+    lv_obj_set_style_margin_top(menu, 0, 0);
 
     // Menu items
     const char* items[] = {
@@ -85,7 +101,7 @@ void MainMenuController::updateButtonFocus(bool animated) {
             lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
             if (animated) {
                 // Configure scrolling animation properties for menu
-                lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_CENTER);
+                lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_START);
                 
                 // Set animation duration for the scroll container
                 lv_obj_set_style_anim_time(menu, 300, 0);  // 300ms animation duration
@@ -105,6 +121,7 @@ void MainMenuController::updateButtonFocus(bool animated) {
         }
     }
 }
+
 
 void MainMenuController::init() {}
 

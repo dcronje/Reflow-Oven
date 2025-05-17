@@ -1,6 +1,7 @@
 // Updated UIViewService with full ST7789 initialization, flush_cb, and tick integration
 
 #include "ui_view_service.h"
+#include "ui/root_view.h"
 #include "constants.h"
 #include "hardware/gpio.h"
 #include "hardware/spi.h"
@@ -12,7 +13,10 @@ UIViewService& UIViewService::getInstance() {
     return instance;
 }
 
-UIViewService::UIViewService() : display(nullptr), uiTaskHandle(nullptr) {}
+UIViewService::UIViewService() 
+    : display(nullptr), 
+      uiTaskHandle(nullptr),
+      encoderEventHandler(nullptr) {}
 
 void UIViewService::init() {
     lv_init();                             // Initialize LVGL core system
@@ -20,11 +24,14 @@ void UIViewService::init() {
     initBacklight();                       // Setup PWM for backlight control
     initDisplay();                         // Initialize ST7789 display and bind to LVGL
 
-    rootView = std::make_unique<RootView>();
-    rootView->init(display);
+    // Note: RootView should now be created outside and registered via registerEncoderEventHandler
 
     // Start LVGL render loop in a separate FreeRTOS task
     xTaskCreate(uiTask, "LVGL Update", 8192, this, tskIDLE_PRIORITY + 1, &uiTaskHandle);
+}
+
+void UIViewService::registerEncoderEventHandler(EncoderEventsInterface* handler) {
+    encoderEventHandler = handler;
 }
 
 void UIViewService::initSPI() {
@@ -143,24 +150,6 @@ void UIViewService::uiTask(void* param) {
     }
 }
 
-void UIViewService::handleEncoderUp() { 
-    printf("Encoder up in UIViewService\n");
-    if (rootView) rootView->scheduleEncoderUpHandler(5); 
-}
-
-void UIViewService::handleEncoderDown() { 
-    printf("Encoder down in UIViewService\n");
-    if (rootView) rootView->scheduleEncoderDownHandler(5);
-}
-
-void UIViewService::handleEncoderPress() { 
-    if (rootView) rootView->scheduleEncoderPressHandler(5); 
-}
-
-void UIViewService::handleEncoderLongPress() { 
-    if (rootView) rootView->scheduleEncoderLongPressHandler(5); 
-}
-
 void UIViewService::st7789_send_command(uint8_t cmd) {
     gpio_put(DISPLAY_SPI_DC_GPIO, 0); // Command mode
     gpio_put(DISPLAY_SPI_CS_GPIO, 0);
@@ -246,4 +235,74 @@ void UIViewService::putDisplayToSleep() {
 void UIViewService::wakeDisplayFromSleep() {
     st7789_send_command(ST7789_SLPOUT);  sleep_ms(120);
     st7789_send_command(ST7789_DISPON);  sleep_ms(10);
+}
+
+// Schedule encoder event using LVGL timers for safe UI interaction
+void UIViewService::scheduleEncoderEvent(EncoderEventsInterface::EventType event, uint32_t delayMs) {
+    switch (event) {
+        case EncoderEventsInterface::EventType::UP:
+            lv_timer_create(encoderUpCallback, delayMs, this);
+            break;
+        case EncoderEventsInterface::EventType::DOWN:
+            lv_timer_create(encoderDownCallback, delayMs, this);
+            break;
+        case EncoderEventsInterface::EventType::PRESS:
+            lv_timer_create(encoderPressCallback, delayMs, this);
+            break;
+        case EncoderEventsInterface::EventType::LONG_PRESS:
+            lv_timer_create(encoderLongPressCallback, delayMs, this);
+            break;
+    }
+}
+
+// Timer callbacks for safe LVGL interaction
+void UIViewService::encoderUpCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
+    if (service && service->encoderEventHandler) {
+        service->encoderEventHandler->handleEncoderUp();
+    }
+    lv_timer_del(timer);
+}
+
+void UIViewService::encoderDownCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
+    if (service && service->encoderEventHandler) {
+        service->encoderEventHandler->handleEncoderDown();
+    }
+    lv_timer_del(timer);
+}
+
+void UIViewService::encoderPressCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
+    if (service && service->encoderEventHandler) {
+        service->encoderEventHandler->handleEncoderPress();
+    }
+    lv_timer_del(timer);
+}
+
+void UIViewService::encoderLongPressCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
+    if (service && service->encoderEventHandler) {
+        service->encoderEventHandler->handleEncoderLongPress();
+    }
+    lv_timer_del(timer);
+}
+
+// Handler methods called from InteractionService
+void UIViewService::handleEncoderUp() {
+    printf("Encoder UP received from InteractionService\n");
+    scheduleEncoderEvent(EncoderEventsInterface::EventType::UP, 5);
+}
+
+void UIViewService::handleEncoderDown() {
+    printf("Encoder DOWN received from InteractionService\n");
+    scheduleEncoderEvent(EncoderEventsInterface::EventType::DOWN, 5);
+}
+
+void UIViewService::handleEncoderPress() {
+    scheduleEncoderEvent(EncoderEventsInterface::EventType::PRESS, 5);
+}
+
+void UIViewService::handleEncoderLongPress() {
+    scheduleEncoderEvent(EncoderEventsInterface::EventType::LONG_PRESS, 5);
 }

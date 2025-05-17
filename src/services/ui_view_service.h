@@ -3,8 +3,10 @@
 #include "lvgl.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
 #include <memory>
 #include "ui/root_view.h"
+#include "core/encoder_events_interface.h"
 
 // System function commands
 #define ST7789_NOP      0x00  // No Operation
@@ -87,6 +89,13 @@
 #define ST7789_ROTATION_WORKING (ST7789_MADCTL_MX | ST7789_MADCTL_MV)
 #define ST7789_ROTATION_WORKING_BGR (ST7789_ROTATION_WORKING | ST7789_MADCTL_BGR)
 
+// Encoder event type enum
+enum class EncoderEvent {
+    UP,
+    DOWN,
+    PRESS,
+    LONG_PRESS
+};
 
 class UIViewService {
 public:
@@ -97,21 +106,32 @@ public:
     void initBacklight();
     bool init_display();
     void setBacklight(float brightness);
+    
+    // Add display accessor
+    lv_display_t* getDisplay() const { return display; }
 
     void putDisplayToSleep();
     void wakeDisplayFromSleep();
     void fillDisplay(uint16_t color);
+    
+    // Register a view that implements EncoderEventsInterface
+    void registerEncoderEventHandler(EncoderEventsInterface* handler);
 
-    // Event forwarding
+    // Event forwarding - these are called from InteractionService
     void handleEncoderUp();
     void handleEncoderDown();
     void handleEncoderPress();
     void handleEncoderLongPress();
+    
+    // Timer callbacks for safe LVGL interaction
+    static void encoderUpCallback(struct _lv_timer_t* timer);
+    static void encoderDownCallback(struct _lv_timer_t* timer);
+    static void encoderPressCallback(struct _lv_timer_t* timer);
+    static void encoderLongPressCallback(struct _lv_timer_t* timer);
 
 private:
     UIViewService();
     static void uiTask(void* param);
-
     
     void initDisplay();
     void resetDisplay();
@@ -121,8 +141,14 @@ private:
     void st7789_send_data(const uint8_t* data, size_t len);
 
     TaskHandle_t uiTaskHandle;
+    
+    // Schedule an encoder event with timer to ensure LVGL safety
+    void scheduleEncoderEvent(EncoderEventsInterface::EventType event, uint32_t delayMs);
+    
     lv_display_t* display;
-    std::unique_ptr<RootView> rootView;
+    
+    // Store reference to the encoder event handler (usually RootView)
+    EncoderEventsInterface* encoderEventHandler;
 
     // PWM/backlight
     int slice_num;

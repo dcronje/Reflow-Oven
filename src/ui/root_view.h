@@ -2,33 +2,29 @@
 
 #include "lvgl.h"
 #include "core/controller_collection.h"
+#include "core/encoder_events_interface.h"
 #include <memory>
 
-class RootView {
+class RootView : public EncoderEventsInterface {
 public:
     RootView();
     void init(lv_display_t* display);
     void update();
 
-    // Input handling
-    void scheduleEncoderUpHandler(uint32_t delayMs);
-    static void encoderUpCallback(struct _lv_timer_t* timer);
-    
-    void scheduleEncoderDownHandler(uint32_t delayMs);
-    static void encoderDownCallback(struct _lv_timer_t* timer);
-    
-    void scheduleEncoderPressHandler(uint32_t delayMs);  
-    static void encoderPressCallback(struct _lv_timer_t* timer);
-    
-    void scheduleEncoderLongPressHandler(uint32_t delayMs);
-    static void encoderLongPressCallback(struct _lv_timer_t* timer);
-    
+    // Top-level controller collection - made public for UIViewService access
+    std::unique_ptr<ControllerCollection> controllerCollection;
+
+    // EncoderEventsInterface implementation
+    void handleEncoderUp() override;
+    void handleEncoderDown() override;
+    void handleEncoderPress() override;
+    void handleEncoderLongPress() override;
+
+    // Keep button event handlers
     void handleTopButtonPress();
     void handleTopButtonLongPress();
     void handleBottomButtonPress();
     void handleBottomButtonLongPress();
-
-    std::unique_ptr<ControllerCollection> controllerCollection;
 
 private:
     lv_display_t* display;
@@ -36,6 +32,4 @@ private:
     lv_obj_t* topBar;
     lv_obj_t* sideBar;
     lv_obj_t* contentArea;
-
-    
 };
