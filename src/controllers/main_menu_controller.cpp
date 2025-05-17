@@ -20,6 +20,9 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     lv_obj_set_size(root, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    // Remove all gaps between flex items
+    lv_obj_set_style_pad_row(root, 0, 0);
+    lv_obj_set_style_pad_column(root, 0, 0);
     lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_margin_all(root, 0, 0);
@@ -28,14 +31,16 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     // Title bar (fixed, not scrollable)
     lv_obj_t* title = CyberpunkTheme::createStripedTitleLabel(root, "REFLOW OVEN");
     lv_obj_clear_flag(title, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_margin_bottom(title, 0, 0);
-    lv_obj_set_style_pad_bottom(title, 0, 0);
+    lv_obj_set_style_margin_all(title, 0, 0);
+    lv_obj_set_style_pad_all(title, 0, 0);
 
     // Scrollable button list container
     menu = lv_obj_create(root);
     lv_obj_remove_style_all(menu);
     lv_obj_set_width(menu, DISPLAY_WIDTH);
     lv_obj_set_flex_grow(menu, 1);
+    lv_obj_set_style_margin_all(menu, 0, 0);
+    lv_obj_set_style_pad_top(menu, 10, 0);
     lv_obj_set_scroll_dir(menu, LV_DIR_VER);
     lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_START);
     lv_obj_set_scrollbar_mode(menu, LV_SCROLLBAR_MODE_AUTO);
@@ -44,11 +49,16 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     lv_obj_set_flex_align(menu, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(menu, 15, 0);
     lv_obj_set_style_pad_bottom(menu, 20, 0);  // Bottom breathing room
-    lv_obj_set_style_pad_top(menu, 0, 0);
     lv_obj_set_style_border_width(menu, 0, 0);
     lv_obj_set_style_bg_color(menu, CYBER_COLOR_BG, 0);
     lv_obj_set_style_bg_opa(menu, LV_OPA_COVER, 0);
-    lv_obj_set_style_margin_top(menu, 0, 0);
+
+    // Force creating the first button at the top
+    lv_obj_t* topPadding = lv_obj_create(menu);
+    lv_obj_set_height(topPadding, 1); // Minimal height
+    lv_obj_set_width(topPadding, DISPLAY_WIDTH);
+    lv_obj_remove_style_all(topPadding);
+    lv_obj_set_style_bg_opa(topPadding, LV_OPA_TRANSP, 0);
 
     // Menu items
     const char* items[] = {
