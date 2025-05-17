@@ -170,73 +170,43 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text) {
     return createStripedTitleLabel(parent, text, DISPLAY_WIDTH);
 }
 
-lv_obj_t* createMenuButton(lv_obj_t* parent, const char* text, bool isFocused, int index, int total, int width, int height) {
-    // Simple buffer allocation - no macro needed in LVGL 9
-    static lv_color_t buf[DISPLAY_WIDTH * 60];
+lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected) {
+    lv_obj_t* btn = lv_obj_create(parent);
+    lv_obj_set_size(btn, 280, 50);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t* canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(canvas, buf, width, height, LV_COLOR_FORMAT_NATIVE);
-    lv_obj_set_style_border_width(canvas, 0, 0);
-    lv_obj_set_style_pad_all(canvas, 0, 0);
-    lv_obj_set_scrollbar_mode(canvas, LV_SCROLLBAR_MODE_OFF);
+    // Style configuration
+    lv_color_t bgColor     = selected ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
+    lv_color_t textColor   = selected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
+    lv_color_t borderColor = selected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
 
-    lv_color_t bg = isFocused ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
-    lv_canvas_fill_bg(canvas, bg, LV_OPA_COVER);
+    // Apply main button styles
+    lv_obj_set_style_bg_color(btn, bgColor, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, borderColor, LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, 2, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
 
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_color = bg;
-    dsc.border_color = isFocused ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
-    dsc.border_width = 2;
-    dsc.radius = 0;
-
-    lv_area_t rect = { .x1 = 0, .y1 = 0, .x2 = width - 1, .y2 = height - 1 };
-    
-    // Initialize layer for drawing
-    lv_layer_t layer;
-    lv_canvas_init_layer(canvas, &layer);
-    
-    // Draw rectangle
-    lv_draw_rect(&layer, &dsc, &rect);
-    
-    // Draw diagonal line in the same layer
-    lv_draw_line_dsc_t cut;
-    lv_draw_line_dsc_init(&cut);
-    cut.color = isFocused ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
-    cut.width = 2;
-    
-    // Set line points directly in descriptor
-    cut.p1.x = 0;
-    cut.p1.y = height - 1;
-    cut.p2.x = 15;
-    cut.p2.y = height - 16;
-    
-    // Draw line
-    lv_draw_line(&layer, &cut);
-    
-    // Finish the layer
-    lv_canvas_finish_layer(canvas, &layer);
-
-    lv_obj_t* label = lv_label_create(canvas);
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, isFocused ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT, 0);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+    // Main label (centered text)
+    lv_obj_t* label = lv_label_create(btn);
+    lv_label_set_text(label, mainText);
+    lv_obj_set_style_text_color(label, textColor, LV_PART_MAIN);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, LV_PART_MAIN);
     lv_obj_center(label);
 
-    char tag[12];
-    snprintf(tag, sizeof(tag), "%02d/%02d", index + 1, total);
-    lv_obj_t* tagLabel = lv_label_create(canvas);
-    lv_label_set_text(tagLabel, tag);
-    lv_obj_set_style_text_font(tagLabel, &lv_font_montserrat_14, 0); // Use font_14 instead of font_12
-    lv_obj_set_style_text_color(tagLabel, isFocused ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT, 0);
-    lv_obj_align(tagLabel, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+    // Edge label (bottom-right corner)
+    lv_obj_t* corner = lv_label_create(btn);
+    lv_label_set_text(corner, edgeLabel);
+    lv_obj_set_style_text_color(corner, textColor, LV_PART_MAIN);
+    lv_obj_set_style_text_font(corner, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_align(corner, LV_ALIGN_BOTTOM_RIGHT, -5, -3);
 
-    return canvas;
+    return btn;
 }
 
-lv_obj_t* createMenuButton(lv_obj_t* parent, const char* text, bool isFocused, int index, int total) {
-    return createMenuButton(parent, text, isFocused, index, total, DISPLAY_WIDTH - 20, 60);
-}
 
 
 } // namespace CyberpunkTheme

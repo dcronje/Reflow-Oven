@@ -70,22 +70,7 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     };
 
     for (int i = 0; i < 5; ++i) {
-        lv_obj_t* btn = lv_btn_create(menu);
-        lv_obj_set_size(btn, 280, 45);
-        lv_obj_add_flag(btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS); // Focus will scroll into view
-
-        lv_obj_t* label = lv_label_create(btn);
-        lv_label_set_text(label, items[i]);
-        lv_obj_center(label);
-
-        if (i == selectedIndex) {
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x0080FF), LV_PART_MAIN);
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-        } else {
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x404040), LV_PART_MAIN);
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xDDDDDD), LV_PART_MAIN);
-        }
-
+        lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, items[i], "tmp", i == selectedIndex);
         buttons.push_back(btn);
     }
 
@@ -97,40 +82,46 @@ void MainMenuController::buildView(lv_obj_t* parent) {
 void MainMenuController::updateButtonFocus(bool animated) {
     if (!menu || buttons.empty()) return;
 
-    // Safely check valid index range
+    // Clamp selection
     if (selectedIndex < 0 || selectedIndex >= static_cast<int>(buttons.size())) {
-        selectedIndex = 0; // Reset to safe value
+        selectedIndex = 0;
     }
 
     for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
         lv_obj_t* btn = buttons[i];
         if (!lv_obj_is_valid(btn)) continue;
 
-        if (i == selectedIndex) {
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x0080FF), LV_PART_MAIN);
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        bool isSelected = (i == selectedIndex);
+
+        lv_color_t bgColor     = isSelected ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
+        lv_color_t textColor   = isSelected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
+        lv_color_t borderColor = isSelected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
+
+        lv_obj_set_style_bg_color(btn, bgColor, LV_PART_MAIN);
+        lv_obj_set_style_border_color(btn, borderColor, LV_PART_MAIN);
+
+        // Update child labels (assumes 2 children)
+        uint32_t childCount = lv_obj_get_child_cnt(btn);
+        for (uint32_t j = 0; j < childCount; ++j) {
+            lv_obj_t* child = lv_obj_get_child(btn, j);
+            if (!lv_obj_is_valid(child)) continue;
+
+            // Apply style to both labels
+            lv_obj_set_style_text_color(child, textColor, LV_PART_MAIN);
+        }
+
+        if (isSelected) {
             if (animated) {
-                // Configure scrolling animation properties for menu
                 lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_START);
-                
-                // Set animation duration for the scroll container
-                lv_obj_set_style_anim_time(menu, 300, 0);  // 300ms animation duration
-                
-                // Use a safer version that checks if object is still valid
-                if (lv_obj_is_valid(menu) && lv_obj_is_valid(btn)) {
-                    lv_obj_scroll_to_view(btn, LV_ANIM_ON);
-                }
+                lv_obj_set_style_anim_time(menu, 300, 0);
+                lv_obj_scroll_to_view(btn, LV_ANIM_ON);
             } else {
-                if (lv_obj_is_valid(menu) && lv_obj_is_valid(btn)) {
-                    lv_obj_scroll_to_view(btn, LV_ANIM_OFF);
-                }
+                lv_obj_scroll_to_view(btn, LV_ANIM_OFF);
             }
-        } else {
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x404040), LV_PART_MAIN);
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xDDDDDD), LV_PART_MAIN);
         }
     }
 }
+
 
 
 void MainMenuController::init() {}
@@ -172,18 +163,22 @@ void MainMenuController::onEncoderLongPress() {
 }
 
 void MainMenuController::selectReflowCurve() {
+    printf("Selecting reflow curve\n");
     // navigateTo("profile-selection", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::startReflow() {
+    printf("Starting reflow\n");
     // navigateTo("reflow", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::calibrate() {
+    printf("Calibrating\n");
     // navigateTo("calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::openSettings() {
+    printf("Opening settings\n");
     // navigateTo("settings", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 

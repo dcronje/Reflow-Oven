@@ -24,7 +24,6 @@ lv_style_t* getTitleLabelStyle();
 
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width);
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text);
-lv_obj_t* createMenuButton(lv_obj_t* parent, const char* text, bool isFocused, int index, int total, int width, int height);
-lv_obj_t* createMenuButton(lv_obj_t* parent, const char* text, bool isFocused, int index, int total);
+lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected);;
 
 } // namespace CyberpunkTheme
