@@ -57,7 +57,7 @@ void UIViewService::initBacklight() {
 void UIViewService::initDisplay() {
     init_display(); // Send ST7789 command initialization sequence
 
-    static lv_color_t buf1[LV_HOR_RES_MAX * 20]; // Partial buffer
+    static lv_color_t buf1[LV_HOR_RES_MAX * 40]; // Doubled buffer size from 20 to 40 lines
     display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
     // Configure internal LVGL buffer with partial mode
@@ -130,7 +130,7 @@ void UIViewService::uiTask(void* param) {
     
     while (true) {
         // Update LVGL tick - this is for animations 
-        lv_tick_inc(5);
+        lv_tick_inc(1);
         
         // Handle LVGL timers and drawing
         lv_timer_handler();
@@ -139,7 +139,7 @@ void UIViewService::uiTask(void* param) {
         // Instead, controllers will call invalidateView() when they need to be redrawn
         
         // Delay until next update (just handle LVGL core functionality)
-        vTaskDelayUntil(&lastTick, pdMS_TO_TICKS(5));  // 5ms for smooth LVGL animations
+        vTaskDelayUntil(&lastTick, pdMS_TO_TICKS(1));  // 1ms for smoother LVGL animations
     }
 }
 

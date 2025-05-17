@@ -70,7 +70,7 @@ const int QUEUE_WAIT_TIME_MS = 10;    // Queue wait time in milliseconds
 #define CALIBRATION_FLASH_OFFSET 0x100000  // Adjust based on your flash layout
 
 // Display Configuration
-#define DISPLAY_SPI_FREQ 20000000  // 40MHz
+#define DISPLAY_SPI_FREQ 40000000  // 40MHz (increased from 20MHz)
 #define DISPLAY_WIDTH 320
 #define DISPLAY_HEIGHT 240
 #define DISPLAY_X_OFFSET 0

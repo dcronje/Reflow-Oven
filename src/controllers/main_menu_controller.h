@@ -31,5 +31,5 @@ private:
     std::vector<lv_obj_t*> buttons;
     int selectedIndex = 0;
 
-    void updateButtonFocus();
+    void updateButtonFocus(bool animated = true);
 };

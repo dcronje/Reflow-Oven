@@ -23,10 +23,9 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     lv_obj_set_flex_flow(menu, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(menu, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scroll_dir(menu, LV_DIR_VER);  // Enable vertical scrolling
-    lv_obj_clear_flag(menu, LV_OBJ_FLAG_SCROLLABLE); // Optional: remove if you want default scrollbars
     lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_CENTER); // Optional: snap to buttons
-    lv_obj_set_style_pad_row(menu, 10, 0);
-    lv_obj_set_style_pad_all(menu, 10, 0);
+    lv_obj_set_style_pad_row(menu, 15, 0); // Increased row padding for better spacing between buttons
+    lv_obj_set_style_pad_all(menu, 5, 0); // Reduced outer padding from 10 to 5
 
     // Title label
     lv_obj_t* title = lv_label_create(menu);
@@ -46,7 +45,7 @@ void MainMenuController::buildView(lv_obj_t* parent) {
 
     for (int i = 0; i < 5; ++i) {
         lv_obj_t* btn = lv_btn_create(menu);
-        lv_obj_set_size(btn, 200, 40);
+        lv_obj_set_size(btn, 280, 45);
         lv_obj_add_flag(btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS); // Focus will scroll into view
 
         lv_obj_t* label = lv_label_create(btn);
@@ -63,11 +62,19 @@ void MainMenuController::buildView(lv_obj_t* parent) {
 
         buttons.push_back(btn);
     }
+
+    // Ensure the menu is scrolled to the top when first loaded
+    updateButtonFocus(false);
 }
 
 
-void MainMenuController::updateButtonFocus() {
+void MainMenuController::updateButtonFocus(bool animated) {
     if (!menu || buttons.empty()) return;
+
+    // Safely check valid index range
+    if (selectedIndex < 0 || selectedIndex >= static_cast<int>(buttons.size())) {
+        selectedIndex = 0; // Reset to safe value
+    }
 
     for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
         lv_obj_t* btn = buttons[i];
@@ -76,6 +83,22 @@ void MainMenuController::updateButtonFocus() {
         if (i == selectedIndex) {
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x0080FF), LV_PART_MAIN);
             lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+            if (animated) {
+                // Configure scrolling animation properties for menu
+                lv_obj_set_scroll_snap_y(menu, LV_SCROLL_SNAP_CENTER);
+                
+                // Set animation duration for the scroll container
+                lv_obj_set_style_anim_time(menu, 300, 0);  // 300ms animation duration
+                
+                // Use a safer version that checks if object is still valid
+                if (lv_obj_is_valid(menu) && lv_obj_is_valid(btn)) {
+                    lv_obj_scroll_to_view(btn, LV_ANIM_ON);
+                }
+            } else {
+                if (lv_obj_is_valid(menu) && lv_obj_is_valid(btn)) {
+                    lv_obj_scroll_to_view(btn, LV_ANIM_OFF);
+                }
+            }
         } else {
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x404040), LV_PART_MAIN);
             lv_obj_set_style_text_color(btn, lv_color_hex(0xDDDDDD), LV_PART_MAIN);
@@ -98,6 +121,9 @@ void MainMenuController::onEncoderPress() {
 }
 
 void MainMenuController::onEncoderUp() {
+    // Prevent UI updates if objects aren't valid
+    if (!menu || buttons.empty()) return;
+    
     if (selectedIndex > 0) {
         selectedIndex--;
         updateButtonFocus();
@@ -105,6 +131,9 @@ void MainMenuController::onEncoderUp() {
 }
 
 void MainMenuController::onEncoderDown() {
+    // Prevent UI updates if objects aren't valid
+    if (!menu || buttons.empty()) return;
+    
     if (selectedIndex < static_cast<int>(buttons.size()) - 1) {
         selectedIndex++;
         updateButtonFocus();
