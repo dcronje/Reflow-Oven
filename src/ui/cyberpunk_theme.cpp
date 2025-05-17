@@ -84,10 +84,11 @@ lv_style_t* getTitleLabelStyle() {
     return &styleTitleLabel;
 }
 
-lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width) {
+lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness) {
     const int height = 40;
-    const int stripeSpacing = 20;
-    const int stripeWidth = 12;
+    const int stripeWidth = stripeThickness;        // Width of black diagonal stripes
+    const int yellowWidth = stripeThickness * 0.7;  // Width of yellow areas between stripes
+    const int stripeSpacing = stripeWidth + yellowWidth;
     const int stripeOvershoot = height / 2;
 
     static lv_color_t bg_buf[DISPLAY_WIDTH * 60];
@@ -167,7 +168,7 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width)
 }
 
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text) {
-    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH);
+    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 12);
 }
 
 lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected) {
@@ -206,7 +207,5 @@ lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const ch
 
     return btn;
 }
-
-
 
 } // namespace CyberpunkTheme

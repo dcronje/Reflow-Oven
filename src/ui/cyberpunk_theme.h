@@ -22,7 +22,7 @@ lv_style_t* getMenuButtonStyle();
 lv_style_t* getMenuButtonFocusedStyle();
 lv_style_t* getTitleLabelStyle();
 
-lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width);
+lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness = 12);
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text);
 lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected);;
 

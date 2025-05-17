@@ -29,7 +29,7 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     lv_obj_set_style_border_width(root, 0, 0);
 
     // Title bar (fixed, not scrollable)
-    lv_obj_t* title = CyberpunkTheme::createStripedTitleLabel(root, "REFLOW OVEN");
+    lv_obj_t* title = CyberpunkTheme::createStripedTitleLabel(root, "REFLOW OVEN", DISPLAY_WIDTH, 20);
     lv_obj_clear_flag(title, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_margin_all(title, 0, 0);
     lv_obj_set_style_pad_all(title, 0, 0);
@@ -70,7 +70,9 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     };
 
     for (int i = 0; i < 5; ++i) {
-        lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, items[i], "tmp", i == selectedIndex);
+        char indexStr[6]; // Buffer for "XX/XX" format
+        snprintf(indexStr, sizeof(indexStr), "%02d/%02d", i+1, 5); // Format as "01/05", "02/05", etc.
+        lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, items[i], indexStr, i == selectedIndex);
         buttons.push_back(btn);
     }
 
