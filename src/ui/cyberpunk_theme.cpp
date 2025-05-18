@@ -84,7 +84,8 @@ lv_style_t* getTitleLabelStyle() {
     return &styleTitleLabel;
 }
 
-lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness) {
+lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness,
+                               lv_color_t textColor, lv_color_t textOutlineColor, int textOutlineThickness) {
     const int height = 40;
     const int stripeWidth = stripeThickness;        // Width of black diagonal stripes
     const int yellowWidth = stripeThickness * 0.7;  // Width of yellow areas between stripes
@@ -130,7 +131,8 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
 
     lv_canvas_finish_layer(canvas, &layer);
 
-    const int outlineOffset = 1;
+    // Create text outline using multiple shadow labels
+    const int outlineOffset = textOutlineThickness;
     lv_point_t offsets[8] = {
         {-outlineOffset, -outlineOffset},
         { 0,             -outlineOffset},
@@ -145,7 +147,7 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
     for (int i = 0; i < 8; ++i) {
         lv_obj_t* shadow = lv_label_create(canvas);
         lv_label_set_text(shadow, text);
-        lv_obj_set_style_text_color(shadow, lv_color_black(), 0);
+        lv_obj_set_style_text_color(shadow, textOutlineColor, 0);
         lv_obj_set_style_text_font(shadow, &lv_font_montserrat_20, 0);
         lv_obj_align(shadow, LV_ALIGN_CENTER, offsets[i].x, offsets[i].y);
 
@@ -156,7 +158,7 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
 
     lv_obj_t* label = lv_label_create(canvas);
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_set_style_text_color(label, textColor, 0);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
     lv_obj_center(label);
 
@@ -168,12 +170,13 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
 }
 
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text) {
-    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 12);
+    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 12, lv_color_white(), lv_color_black(), 1);
 }
 
 lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected) {
+    const int buttonWidth = 300;
     lv_obj_t* btn = lv_obj_create(parent);
-    lv_obj_set_size(btn, 280, 50);
+    lv_obj_set_size(btn, buttonWidth, 50);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
 
     // Style configuration

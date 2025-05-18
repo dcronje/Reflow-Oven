@@ -7,7 +7,19 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "event_groups.h"
 #include "hardware/adc.h"
+#include <functional>
+#include <vector>
+
+// Define event bits for the door event group
+#define DOOR_EVENT_OPENING      (1 << 0)
+#define DOOR_EVENT_OPENED       (1 << 1)
+#define DOOR_EVENT_CLOSING      (1 << 2)
+#define DOOR_EVENT_CLOSED       (1 << 3)
+#define DOOR_EVENT_ENABLED      (1 << 4)
+#define DOOR_EVENT_DISABLED     (1 << 5)
+#define DOOR_EVENT_POSITION     (1 << 6)
 
 struct ServoConfig {
     uint minPulse;  // Pulse width for 0 degrees
@@ -21,6 +33,26 @@ enum class DoorDirection {
     CLOSING
 };
 
+// Door event types
+enum class DoorEventType {
+    DOOR_OPENING,    // Door has started opening
+    DOOR_OPENED,     // Door has fully opened
+    DOOR_CLOSING,    // Door has started closing
+    DOOR_CLOSED,     // Door has fully closed
+    DOOR_POSITION,   // Door position has changed (includes percentage)
+    DOOR_ENABLED,    // Door servo has been enabled
+    DOOR_DISABLED    // Door servo has been disabled
+};
+
+// Event data structure
+struct DoorEvent {
+    DoorEventType type;
+    int positionPercent; // 0-100% open
+};
+
+// Callback function type
+typedef std::function<void(const DoorEvent&)> DoorEventCallback;
+
 class DoorService {
 public:
     static DoorService& getInstance();
@@ -30,6 +62,10 @@ public:
     void disableServo();
     bool isEnabled() const;
 
+    // High-level door operations
+    void open();  // Open the door fully
+    void close(); // Close the door fully
+    
     // Position control (0-100%)
     void setPosition(uint8_t percent);
     uint8_t getPosition() const;
@@ -49,6 +85,17 @@ public:
     // Safety control
     bool isServoEnabled() const;
     bool isSafeToMove() const;
+    
+    // Get current door direction
+    DoorDirection getDoorDirection() const { return direction; }
+    
+    // Event handling
+    void addEventListener(DoorEventCallback callback);
+    void removeEventListener(DoorEventCallback callback);
+    
+    // Event Group access - for FreeRTOS Event Group system
+    EventGroupHandle_t getDoorEventGroup() const { return doorEventGroup; }
+    uint8_t getLastPositionEvent() const { return lastPositionPercent; }
 
 private:
     DoorService();
@@ -61,6 +108,16 @@ private:
     void updateServoPosition();
     void readFeedback();
     void protectPins(bool protect);
+    
+    // Event methods
+    void emitEvent(DoorEventType type, int positionPercent);
+    void checkAndEmitLimitEvents();
+    
+    // Event group method (for FreeRTOS events)
+    void setEventGroupBits(EventBits_t bits, int positionPercent);
+
+    // Helper methods
+    static uint8_t map(uint8_t x, uint8_t in_min, uint8_t in_max, uint8_t out_min, uint8_t out_max);
 
     uint doorSm;
     ServoConfig doorConfig;
@@ -75,6 +132,15 @@ private:
     bool enabled = false;
     uint8_t targetPosition = 0;  // 0-100%
     uint8_t feedbackValue = 0;   // Raw ADC reading
+    
+    // Event handling
+    std::vector<DoorEventCallback> eventListeners;
+    bool wasFullyOpen = false;
+    bool wasFullyClosed = false;
+    
+    // Event group for FreeRTOS based messaging
+    EventGroupHandle_t doorEventGroup;
+    uint8_t lastPositionPercent;
 
     // Pin definitions
     static constexpr uint8_t SERVO_PWM_PIN = DOOR_SERVO_CONTROL_GPIO;

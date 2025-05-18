@@ -1,10 +1,14 @@
 #include "services/door_service.h"
+#include "core/event_bus.h"
+#include "core/event_payload.h"
+#include "types/event_types.h"
 #include "constants.h"
 #include "globals.h"
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 #include "hardware/adc.h"
 #include "pico/time.h"
+#include <algorithm> // For std::remove_if
 
 DoorService& DoorService::getInstance() {
     static DoorService instance;
@@ -22,7 +26,9 @@ DoorService::DoorService()
       safetyTaskHandle(nullptr),
       direction(DoorDirection::NONE),
       commandQueue(xQueueCreate(10, sizeof(DoorCommand))),
-      taskHandle(nullptr) {
+      taskHandle(nullptr),
+      doorEventGroup(xEventGroupCreate()),
+      lastPositionPercent(0) {
 }
 
 void DoorService::init() {
@@ -69,6 +75,9 @@ void DoorService::enableServo() {
 
         // Enable pins after power is stable
         protectPins(false);
+        
+        // Emit event
+        emitEvent(DoorEventType::DOOR_ENABLED, getPosition());
     }
 }
 
@@ -79,6 +88,9 @@ void DoorService::disableServo() {
     // Disable power to the servo via the MOSFET
     gpio_put(SERVO_POWER_PIN, 0);
     servoEnabled = false;
+    
+    // Emit event
+    emitEvent(DoorEventType::DOOR_DISABLED, getPosition());
 }
 
 bool DoorService::isServoEnabled() const {
@@ -111,6 +123,9 @@ void DoorService::safetyMonitor() {
     
     while (true) {
         if (servoEnabled) {
+            // Check for limit switches and emit events if needed
+            checkAndEmitLimitEvents();
+            
             if (!isSafeToMove()) {
                 // Emergency stop if unsafe
                 disableServo();
@@ -124,15 +139,20 @@ void DoorService::setPosition(uint8_t percent) {
     if (!servoEnabled) {
         return; // Ignore position changes if servo is disabled
     }
+    
+    // Store the target position
+    targetPosition = percent;
 
     // Calculate target angle
     targetAngle = map(percent, 0, 100, doorClosedAngle, doorOpenAngle);
     
-    // Determine direction
+    // Determine direction and emit appropriate event
     if (targetAngle > currentAngle) {
         direction = DoorDirection::OPENING;
+        emitEvent(DoorEventType::DOOR_OPENING, percent);
     } else if (targetAngle < currentAngle) {
         direction = DoorDirection::CLOSING;
+        emitEvent(DoorEventType::DOOR_CLOSING, percent);
     } else {
         direction = DoorDirection::NONE;
     }
@@ -144,6 +164,9 @@ void DoorService::setPosition(uint8_t percent) {
     }
 
     setRawAngle(targetAngle);
+    
+    // Emit position change event
+    emitEvent(DoorEventType::DOOR_POSITION, percent);
 }
 
 void DoorService::setCalibrationAngles(uint8_t closedAngle, uint8_t openAngle) {
@@ -257,4 +280,130 @@ void DoorService::updateServoPosition() {
 
 uint8_t DoorService::getCurrentRawAngle() const {
     return currentAngle;
+}
+
+// Add event handling implementations
+
+void DoorService::addEventListener(DoorEventCallback callback) {
+    // Add callback to listeners vector
+    eventListeners.push_back(callback);
+}
+
+void DoorService::removeEventListener(DoorEventCallback callback) {
+    // Since we can't directly compare std::function objects for equality,
+    // this is a placeholder. In a real implementation, you'd need a way
+    // to identify listeners, such as using a token or ID.
+    // This is just to demonstrate the concept.
+    // eventListeners.erase(std::remove_if(eventListeners.begin(), eventListeners.end(), 
+    //    [&callback](const DoorEventCallback& c) { return &c == &callback; }), 
+    //    eventListeners.end());
+}
+
+void DoorService::emitEvent(DoorEventType type, int positionPercent) {
+    // Create event object for legacy system
+    DoorEvent doorEvent{type, positionPercent};
+    
+    // Set corresponding event group bits for FreeRTOS Events
+    EventBits_t bits = 0;
+    
+    // Also create an EventBus event for the new system
+    std::string eventName;
+    
+    switch (type) {
+        case DoorEventType::DOOR_OPENING:
+            bits = DOOR_EVENT_OPENING;
+            eventName = EventNames::OPENING;
+            break;
+        case DoorEventType::DOOR_OPENED:
+            bits = DOOR_EVENT_OPENED;
+            eventName = EventNames::OPENED;
+            break;
+        case DoorEventType::DOOR_CLOSING:
+            bits = DOOR_EVENT_CLOSING;
+            eventName = EventNames::CLOSING;
+            break;
+        case DoorEventType::DOOR_CLOSED:
+            bits = DOOR_EVENT_CLOSED;
+            eventName = EventNames::CLOSED;
+            break;
+        case DoorEventType::DOOR_ENABLED:
+            bits = DOOR_EVENT_ENABLED;
+            eventName = "enabled";
+            break;
+        case DoorEventType::DOOR_DISABLED:
+            bits = DOOR_EVENT_DISABLED;
+            eventName = "disabled";
+            break;
+        case DoorEventType::DOOR_POSITION:
+            bits = DOOR_EVENT_POSITION;
+            eventName = "position";
+            break;
+    }
+    
+    // Set the event group bits if applicable
+    if (bits != 0) {
+        // Store position for position events
+        if (bits & DOOR_EVENT_POSITION) {
+            lastPositionPercent = positionPercent;
+        }
+        
+        // Set the bits in the event group
+        xEventGroupSetBits(doorEventGroup, bits);
+    }
+    
+    // Publish to the EventBus if we have a valid event name
+    if (!eventName.empty()) {
+        // Create payload with position data
+        void* payload = EventPayload::createIntPayload(positionPercent);
+        
+        // Create and post the event
+        Event event(EventTopics::DOOR, eventName, payload, sizeof(EventPayload::IntPayload));
+        EventBus::getInstance().postEvent(event);
+    }
+    
+    // Notify all legacy listeners
+    for (const auto& listener : eventListeners) {
+        listener(doorEvent);
+    }
+}
+
+void DoorService::checkAndEmitLimitEvents() {
+    // Check if door has just opened fully
+    bool isOpen = isFullyOpen();
+    if (isOpen && !wasFullyOpen) {
+        emitEvent(DoorEventType::DOOR_OPENED, 100);
+    }
+    wasFullyOpen = isOpen;
+    
+    // Check if door has just closed fully
+    bool isClosed = isFullyClosed();
+    if (isClosed && !wasFullyClosed) {
+        emitEvent(DoorEventType::DOOR_CLOSED, 0);
+    }
+    wasFullyClosed = isClosed;
+}
+
+// Add this method to get current position as percentage
+uint8_t DoorService::getPosition() const {
+    // Calculate position percentage based on current angle
+    return map(currentAngle, doorClosedAngle, doorOpenAngle, 0, 100);
+}
+
+// Add this helper method for mapping values
+uint8_t DoorService::map(uint8_t x, uint8_t in_min, uint8_t in_max, uint8_t out_min, uint8_t out_max) {
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+bool DoorService::isEnabled() const {
+    return servoEnabled;
+}
+
+void DoorService::open() {
+    // Open the door to 100% position
+    setPosition(100);
+}
+
+void DoorService::close() {
+    // Close the door to 0% position
+    setPosition(0);
 } 
