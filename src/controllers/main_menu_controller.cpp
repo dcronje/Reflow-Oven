@@ -1,10 +1,14 @@
 #include "main_menu_controller.h"
 #include "services/door_service.h"
 #include "services/buzzer_service.h"
-#include "core/event_bus.h"
-#include "core/event_payload.h"
-#include "types/event_types.h"
+#include "core/message_event_bus.h"
+#include "core/message_event_adapter.h"
 #include "ui/cyberpunk_theme.h"
+#include "pb_decode.h"
+#include "pb.h"
+#include "pb_encode.h"
+#include <ctime>
+#include <cstring>
 
 MainMenuController& MainMenuController::getInstance() {
     static MainMenuController instance;
@@ -150,52 +154,139 @@ MainMenuController::~MainMenuController() {
         updateTimer = nullptr;
     }
 
-    // Delete the event processing task if it exists
-    if (eventTaskHandle != nullptr) {
-        vTaskDelete(eventTaskHandle);
-        eventTaskHandle = nullptr;
+    // Delete the message processing task if it exists
+    if (messageTaskHandle != nullptr) {
+        vTaskDelete(messageTaskHandle);
+        messageTaskHandle = nullptr;
     }
+    
+    // Delete message queue
+    if (messageQueue != nullptr) {
+        vQueueDelete(messageQueue);
+        messageQueue = nullptr;
+    }
+    
+    // Unregister from message event bus
+    MessageEventBus::getInstance().unregisterHandler(this);
 }
 
 void MainMenuController::init() {
-    // Create a task to process events from the EventBus
+    // Create message queue
+    messageQueue = xQueueCreate(10, MessageEventBus::MAX_MESSAGE_SIZE);
+    
+    // Register with MessageEventBus
+    MessageEventBus::getInstance().registerHandler(this);
+    
+    // Register for specific message types
+    MessageEventBus::getInstance().registerTypeHandler(
+        static_cast<uint32_t>(MessageType::SYSTEM), this);
+    MessageEventBus::getInstance().registerTypeHandler(
+        static_cast<uint32_t>(MessageType::HARDWARE), this);
+    
+    // Create a task to process messages
     xTaskCreate(
-        eventProcessingTask,   // Function that implements the task
-        "MenuEventTask",       // Task name
-        256,                   // Stack size in words
-        this,                  // Parameter passed to the task
-        1,                     // Task priority
-        &eventTaskHandle       // Task handle
+        messageProcessingTask,   // Function that implements the task
+        "MenuMsgTask",           // Task name
+        256,                     // Stack size in words
+        this,                    // Parameter passed to the task
+        1,                       // Task priority
+        &messageTaskHandle       // Task handle
     );
     
     // Create timer for periodic UI updates (500ms)
     updateTimer = lv_timer_create(updateTimerCallback, 500, this);
 }
 
-void MainMenuController::eventProcessingTask(void* pvParameters) {
+bool MainMenuController::processMessage(const void* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    
+    // Simply forward the message to our queue for processing in the task
+    return xQueueSend(messageQueue, data, 0) == pdTRUE;
+}
+
+bool MainMenuController::processMessage(const std::string& serialized) {
+    if (serialized.empty()) {
+        return false;
+    }
+    return processMessage(serialized.data(), serialized.size());
+}
+
+void MainMenuController::messageProcessingTask(void* pvParameters) {
     MainMenuController* controller = static_cast<MainMenuController*>(pvParameters);
     
+    if (!controller || !controller->messageQueue) {
+        vTaskDelete(nullptr); // Delete self if invalid
+        return;
+    }
+    
+    // Buffer for receiving messages
+    uint8_t messageBuffer[MessageEventBus::MAX_MESSAGE_SIZE];
+    
     while (true) {
-        // Wait for and process events
-        Event event(EventTopics::SYSTEM, EventNames::INITIALIZED);
-        if (controller->eventSubscriber.receiveEvent(event, pdMS_TO_TICKS(100))) {
-            // Handle events based on topic and event name
-            if (event.topic == EventTopics::DOOR) {
-                if (event.event == EventNames::OPENED || 
-                    event.event == EventNames::CLOSED ||
-                    event.event == EventNames::OPENING || 
-                    event.event == EventNames::CLOSING) {
-                    // Door state changed - we'll let the timer update the UI
-                    // to avoid threading issues with direct UI updates
-                }
+        // Wait for a message
+        if (xQueueReceive(controller->messageQueue, messageBuffer, portMAX_DELAY) == pdTRUE) {
+            // First try to parse as a hardware message for door events
+            if (controller->processDoorMessage(messageBuffer, sizeof(messageBuffer))) {
+                // Successfully processed as a door message
             }
-            
-            // Clean up event - the Event destructor will handle freeing the payload
+            // Then try to parse as a system message
+            else if (controller->processSystemMessage(messageBuffer, sizeof(messageBuffer))) {
+                // Successfully processed as a system message
+            }
+            // Other message types can be added here
         }
         
-        // Brief delay if no events
+        // Brief delay if message queue is empty
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+bool MainMenuController::processDoorMessage(const void* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    
+    // Parse the message as a hardware message
+    reflow_HardwareMessage message = reflow_HardwareMessage_init_zero;
+    pb_istream_t stream = pb_istream_from_buffer(static_cast<const pb_byte_t*>(data), size);
+    
+    if (!pb_decode(&stream, reflow_HardwareMessage_fields, &message)) {
+        return false;
+    }
+    
+    // Check if it's a door event
+    if (message.which_payload == reflow_HardwareMessage_door_event_tag) {
+        // Door state changed - we'll let the timer update the UI
+        // to avoid threading issues with direct UI updates
+        return true;
+    }
+    
+    return false;
+}
+
+bool MainMenuController::processSystemMessage(const void* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    
+    // Parse the message as a system message
+    reflow_SystemMessage message = reflow_SystemMessage_init_zero;
+    pb_istream_t stream = pb_istream_from_buffer(static_cast<const pb_byte_t*>(data), size);
+    
+    if (!pb_decode(&stream, reflow_SystemMessage_fields, &message)) {
+        return false;
+    }
+    
+    // Process based on message type
+    if (message.which_payload == reflow_SystemMessage_event_tag) {
+        // System state changed - we might want to update the UI
+        // based on the new state
+        return true;
+    }
+    
+    return false;
 }
 
 void MainMenuController::updateTimerCallback(lv_timer_t* timer) {
@@ -258,18 +349,50 @@ void MainMenuController::selectReflowCurve() {
 void MainMenuController::startReflow() {
     printf("Starting reflow\n");
     
-    // Example: Post an event to the EventBus that reflow is starting
-    // Create event with no payload
-    Event event(EventTopics::REFLOW, EventNames::STARTED);
+    // Create and serialize a system command to start reflow
+    reflow_SystemMessage message = reflow_SystemMessage_init_zero;
+    message.has_base = true;
+    message.base.sequence_id = 0;
+    message.base.timestamp = time(nullptr) * 1000;
+    message.base.priority = 1;
+    message.base.type = reflow_BaseMessage_MessageType_COMMAND;
     
-    // Post to the event bus
-    EventBus::getInstance().postEvent(event);
+    // Set command type
+    message.which_payload = reflow_SystemMessage_command_tag;
+    message.payload.command.command = reflow_SystemCommand_CommandType_START_REFLOW;
+    
+    // Serialize and post to the message event bus
+    uint8_t buffer[256];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+    if (pb_encode(&stream, reflow_SystemMessage_fields, &message)) {
+        MessageEventAdapter::getInstance().postMessage(buffer, stream.bytes_written);
+    }
     
     // navigateTo("reflow", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::calibrate() {
     printf("Calibrating\n");
+    
+    // Create and serialize a system command to start calibration
+    reflow_SystemMessage message = reflow_SystemMessage_init_zero;
+    message.has_base = true;
+    message.base.sequence_id = 0;
+    message.base.timestamp = time(nullptr) * 1000;
+    message.base.priority = 1;
+    message.base.type = reflow_BaseMessage_MessageType_COMMAND;
+    
+    // Set command type
+    message.which_payload = reflow_SystemMessage_command_tag;
+    message.payload.command.command = reflow_SystemCommand_CommandType_START_CALIBRATION;
+    
+    // Serialize and post to the message event bus
+    uint8_t buffer[256];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+    if (pb_encode(&stream, reflow_SystemMessage_fields, &message)) {
+        MessageEventAdapter::getInstance().postMessage(buffer, stream.bytes_written);
+    }
+    
     // navigateTo("calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
@@ -366,10 +489,19 @@ void MainMenuController::willUnload() {
         updateTimer = nullptr;
     }
     
-    // Clean up the event task
-    if (eventTaskHandle != nullptr) {
-        vTaskDelete(eventTaskHandle);
-        eventTaskHandle = nullptr;
+    // Unregister from message event bus
+    MessageEventBus::getInstance().unregisterHandler(this);
+    
+    // Clean up the message task
+    if (messageTaskHandle != nullptr) {
+        vTaskDelete(messageTaskHandle);
+        messageTaskHandle = nullptr;
+    }
+    
+    // Delete message queue
+    if (messageQueue != nullptr) {
+        vQueueDelete(messageQueue);
+        messageQueue = nullptr;
     }
     
     // Clean up UI

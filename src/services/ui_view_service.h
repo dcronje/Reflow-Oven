@@ -6,7 +6,8 @@
 #include "queue.h"
 #include <memory>
 #include "ui/root_view.h"
-#include "core/encoder_events_interface.h"
+#include "core/input_events_interface.h"
+#include "core/message_handler.h"
 
 // System function commands
 #define ST7789_NOP      0x00  // No Operation
@@ -92,12 +93,10 @@
 // Encoder event type enum
 enum class EncoderEvent {
     UP,
-    DOWN,
-    PRESS,
-    LONG_PRESS
+    DOWN
 };
 
-class UIViewService {
+class UIViewService : public MessageHandler {
 public:
     static UIViewService& getInstance();
 
@@ -114,20 +113,24 @@ public:
     void wakeDisplayFromSleep();
     void fillDisplay(uint16_t color);
     
-    // Register a view that implements EncoderEventsInterface
-    void registerEncoderEventHandler(EncoderEventsInterface* handler);
+    // Register a view that implements InputEventsInterface
+    void registerInputEventHandler(InputEventsInterface* handler);
 
-    // Event forwarding - these are called from InteractionService
+    // MessageHandler implementation
+    bool processMessage(const void* data, size_t size) override;
+    bool processMessage(const std::string& serialized) override;
+    
+    // Event forwarding methods called from message handlers
     void handleEncoderUp();
     void handleEncoderDown();
-    void handleEncoderPress();
-    void handleEncoderLongPress();
+    void handleButtonPress(int buttonId);
+    void handleButtonLongPress(int buttonId);
     
     // Timer callbacks for safe LVGL interaction
     static void encoderUpCallback(struct _lv_timer_t* timer);
     static void encoderDownCallback(struct _lv_timer_t* timer);
-    static void encoderPressCallback(struct _lv_timer_t* timer);
-    static void encoderLongPressCallback(struct _lv_timer_t* timer);
+    static void buttonPressCallback(struct _lv_timer_t* timer);
+    static void buttonLongPressCallback(struct _lv_timer_t* timer);
 
 private:
     UIViewService();
@@ -142,13 +145,20 @@ private:
 
     TaskHandle_t uiTaskHandle;
     
-    // Schedule an encoder event with timer to ensure LVGL safety
-    void scheduleEncoderEvent(EncoderEventsInterface::EventType event, uint32_t delayMs);
+    // Schedule input events with timer to ensure LVGL safety
+    void scheduleEncoderEvent(EncoderEvent event, uint32_t delayMs = 0);
+    void scheduleButtonEvent(int buttonId, bool isLongPress, uint32_t delayMs = 0);
     
     lv_display_t* display;
     
-    // Store reference to the encoder event handler (usually RootView)
-    EncoderEventsInterface* encoderEventHandler;
+    // Store reference to the input event handler (usually RootView)
+    InputEventsInterface* inputEventHandler;
+
+    // Button state for current callback
+    struct ButtonState {
+        int buttonId;
+        bool isLongPress;
+    };
 
     // PWM/backlight
     int slice_num;

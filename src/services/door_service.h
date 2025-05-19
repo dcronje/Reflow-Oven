@@ -9,6 +9,7 @@
 #include "queue.h"
 #include "event_groups.h"
 #include "hardware/adc.h"
+#include "core/message_event_adapter.h"
 #include <functional>
 #include <vector>
 
@@ -33,7 +34,7 @@ enum class DoorDirection {
     CLOSING
 };
 
-// Door event types
+// Door event types - legacy, kept for transition
 enum class DoorEventType {
     DOOR_OPENING,    // Door has started opening
     DOOR_OPENED,     // Door has fully opened
@@ -44,13 +45,13 @@ enum class DoorEventType {
     DOOR_DISABLED    // Door servo has been disabled
 };
 
-// Event data structure
+// Legacy event data structure - kept for transition
 struct DoorEvent {
     DoorEventType type;
     int positionPercent; // 0-100% open
 };
 
-// Callback function type
+// Legacy callback function type - kept for transition
 typedef std::function<void(const DoorEvent&)> DoorEventCallback;
 
 class DoorService {
@@ -89,7 +90,11 @@ public:
     // Get current door direction
     DoorDirection getDoorDirection() const { return direction; }
     
-    // Event handling
+    // Message system implementation
+    void processMessage(const void* data, size_t size);
+    void processMessage(const std::string& serialized);
+    
+    // Legacy event handling - kept for transition
     void addEventListener(DoorEventCallback callback);
     void removeEventListener(DoorEventCallback callback);
     
@@ -109,7 +114,11 @@ private:
     void readFeedback();
     void protectPins(bool protect);
     
-    // Event methods
+    // Message publishing methods
+    void publishDoorStatus(uint8_t position);
+    void publishDoorEvent(DoorEventType type, int positionPercent);
+    
+    // Legacy event methods - kept for transition
     void emitEvent(DoorEventType type, int positionPercent);
     void checkAndEmitLimitEvents();
     
@@ -133,7 +142,7 @@ private:
     uint8_t targetPosition = 0;  // 0-100%
     uint8_t feedbackValue = 0;   // Raw ADC reading
     
-    // Event handling
+    // Legacy event handling
     std::vector<DoorEventCallback> eventListeners;
     bool wasFullyOpen = false;
     bool wasFullyClosed = false;

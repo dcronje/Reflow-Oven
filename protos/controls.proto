@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package reflow;
+
+import "protos/common.proto";
+
+// ------------------------------
+// Input events from controller
+// ------------------------------
+message InputEvent {
+  enum InputType {
+    ENCODER_UP = 0;       // Encoder turned clockwise
+    ENCODER_DOWN = 1;     // Encoder turned counter-clockwise
+    ENCODER_PRESS = 2;    // Short press of encoder button
+    ENCODER_LONG_PRESS = 3; // Long press of encoder button
+    
+    BUTTON_1_PRESS = 4;       // Short press of button 1
+    BUTTON_1_LONG_PRESS = 5;  // Long press of button 1
+    
+    BUTTON_2_PRESS = 6;       // Short press of button 2
+    BUTTON_2_LONG_PRESS = 7;  // Long press of button 2
+
+    BUTTON_3_PRESS = 8;       // Short press of button 3
+    BUTTON_3_LONG_PRESS = 9;  // Long press of button 3
+
+    BUTTON_4_PRESS = 10;      // Short press of button 4
+    BUTTON_4_LONG_PRESS = 11; // Long press of button 4
+  }
+  
+  InputType type = 1;
+  int32 encoder_steps = 2;    // Number of steps for encoder events (signed)
+}
+
+// ------------------------------
+// Controller status
+// ------------------------------
+message ControllerStatus {
+  bool initialized = 1;
+  uint64 uptime_ms = 2;
+  uint32 free_memory = 3;
+  
+  // LED status
+  bool light_on = 4;          // Whether the main light is on
+  uint32 light_brightness = 5; // Current brightness level (0-100)
+}
+
+// ------------------------------
+// Commands to controller
+// ------------------------------
+message ControllerCommand {
+  enum CommandType {
+    SET_LED = 0;          // RGB status LED
+    BUZZER_BEEP = 1;
+    RESET = 2;
+    SLEEP = 3;
+    WAKE = 4;
+    SET_LIGHT = 5;        // Main oven light
+  }
+  
+  CommandType command = 1;
+  
+  // For SET_LED (RGB status LED)
+  uint32 led_color = 2;        // RGB color as 0x00RRGGBB
+  uint32 led_blink_pattern = 3; // 0 = solid, otherwise bit pattern
+  
+  // For BUZZER_BEEP
+  uint32 buzzer_frequency = 4; // In Hz
+  uint32 buzzer_duration = 5;  // In ms
+  uint32 buzzer_pattern = 6;   // Bit pattern for multiple beeps
+  
+  // For SLEEP
+  uint32 sleep_duration = 7;   // In ms, 0 = indefinite
+  
+  // For SET_LIGHT (Main oven light)
+  bool light_on = 8;           // On/off state
+  uint32 light_brightness = 9; // Brightness level (0-100)
+}
+
+// ------------------------------
+// Combined controls message
+// ------------------------------
+message ControlsMessage {
+  BaseMessage base = 1;
+  oneof payload {
+    InputEvent input_event = 2;
+    ControllerStatus status = 3;
+    ControllerCommand command = 4;
+    CommandResponse response = 5;
+  }
+} 

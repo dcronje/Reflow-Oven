@@ -7,6 +7,12 @@
 #include "hardware/spi.h"
 #include "hardware/pwm.h"
 #include "lvgl.h"
+#include "core/message_event_bus.h"
+#include "pb.h"
+#include "pb_decode.h"
+#include "pb_encode.h"
+#include "generated/protos/controls.pb.h"
+#include "core/message_event_adapter.h"
 
 UIViewService& UIViewService::getInstance() {
     static UIViewService instance;
@@ -16,22 +22,52 @@ UIViewService& UIViewService::getInstance() {
 UIViewService::UIViewService() 
     : display(nullptr), 
       uiTaskHandle(nullptr),
-      encoderEventHandler(nullptr) {}
+      inputEventHandler(nullptr) {}
 
 void UIViewService::init() {
-    lv_init();                             // Initialize LVGL core system
-    initSPI();                             // Configure SPI GPIOs and start SPI peripheral
-    initBacklight();                       // Setup PWM for backlight control
-    initDisplay();                         // Initialize ST7789 display and bind to LVGL
+    printf("Initializing UIViewService\n");
+    // Initialize Display
+    initDisplay();
+    printf("Display initialized\n");
 
-    // Note: RootView should now be created outside and registered via registerEncoderEventHandler
+    // Initialize LVGL (if not already)
+    if (display == nullptr) {
+        // Create a buffer for LVGL
+        static lv_disp_draw_buf_t draw_buf;
+        static lv_color_t buf1[DISPLAY_WIDTH * 32];
+        static lv_color_t buf2[DISPLAY_WIDTH * 32];
+        lv_disp_draw_buf_init(&draw_buf, buf1, buf2, DISPLAY_WIDTH * 32);
 
-    // Start LVGL render loop in a separate FreeRTOS task
-    xTaskCreate(uiTask, "LVGL Update", 8192, this, tskIDLE_PRIORITY + 1, &uiTaskHandle);
+        // Create LVGL display with our flush callback
+        static lv_disp_drv_t disp_drv;
+        lv_disp_drv_init(&disp_drv);
+        disp_drv.hor_res = DISPLAY_WIDTH;
+        disp_drv.ver_res = DISPLAY_HEIGHT;
+        disp_drv.flush_cb = flush_cb; // Custom callback must be defined elsewhere
+        disp_drv.draw_buf = &draw_buf;
+        display = lv_disp_drv_register(&disp_drv);
+    }
+    
+    // Create UI task
+    xTaskCreate(
+        uiTask,
+        "uiTask",
+        2048,
+        this,
+        1,
+        &uiTaskHandle
+    );
+    
+    // Register with MessageEventBus
+    MessageEventBus::getInstance().registerHandler(this);
+    
+    // Register for specific message types
+    MessageEventBus::getInstance().registerTypeHandler(
+        static_cast<uint32_t>(MessageType::CONTROLS), this);
 }
 
-void UIViewService::registerEncoderEventHandler(EncoderEventsInterface* handler) {
-    encoderEventHandler = handler;
+void UIViewService::registerInputEventHandler(InputEventsInterface* handler) {
+    inputEventHandler = handler;
 }
 
 void UIViewService::initSPI() {
@@ -238,71 +274,175 @@ void UIViewService::wakeDisplayFromSleep() {
 }
 
 // Schedule encoder event using LVGL timers for safe UI interaction
-void UIViewService::scheduleEncoderEvent(EncoderEventsInterface::EventType event, uint32_t delayMs) {
+void UIViewService::scheduleEncoderEvent(EncoderEvent event, uint32_t delayMs) {
     switch (event) {
-        case EncoderEventsInterface::EventType::UP:
+        case EncoderEvent::UP:
             lv_timer_create(encoderUpCallback, delayMs, this);
             break;
-        case EncoderEventsInterface::EventType::DOWN:
+        case EncoderEvent::DOWN:
             lv_timer_create(encoderDownCallback, delayMs, this);
             break;
-        case EncoderEventsInterface::EventType::PRESS:
-            lv_timer_create(encoderPressCallback, delayMs, this);
+        default:
             break;
-        case EncoderEventsInterface::EventType::LONG_PRESS:
-            lv_timer_create(encoderLongPressCallback, delayMs, this);
-            break;
+    }
+}
+
+// Schedule button event using LVGL timers for safe UI interaction
+void UIViewService::scheduleButtonEvent(int buttonId, bool isLongPress, uint32_t delayMs) {
+    // Store the button information in a struct and pass it to the timer
+    ButtonState* state = new ButtonState{buttonId, isLongPress};
+    
+    if (isLongPress) {
+        lv_timer_t* timer = lv_timer_create(buttonLongPressCallback, delayMs, this);
+        lv_timer_set_user_data(timer, state);
+    } else {
+        lv_timer_t* timer = lv_timer_create(buttonPressCallback, delayMs, this);
+        lv_timer_set_user_data(timer, state);
     }
 }
 
 // Timer callbacks for safe LVGL interaction
 void UIViewService::encoderUpCallback(struct _lv_timer_t* timer) {
     UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
-    if (service && service->encoderEventHandler) {
-        service->encoderEventHandler->handleEncoderUp();
+    if (service && service->inputEventHandler) {
+        service->inputEventHandler->handleEncoderUp();
     }
     lv_timer_del(timer);
 }
 
 void UIViewService::encoderDownCallback(struct _lv_timer_t* timer) {
     UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
-    if (service && service->encoderEventHandler) {
-        service->encoderEventHandler->handleEncoderDown();
+    if (service && service->inputEventHandler) {
+        service->inputEventHandler->handleEncoderDown();
     }
     lv_timer_del(timer);
 }
 
-void UIViewService::encoderPressCallback(struct _lv_timer_t* timer) {
-    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
-    if (service && service->encoderEventHandler) {
-        service->encoderEventHandler->handleEncoderPress();
+void UIViewService::buttonPressCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(timer->user_data);
+    ButtonState* state = static_cast<ButtonState*>(timer->user_data);
+    
+    if (service && service->inputEventHandler && state) {
+        service->inputEventHandler->handleButtonPress(state->buttonId);
+        delete state; // Clean up the allocated state
     }
     lv_timer_del(timer);
 }
 
-void UIViewService::encoderLongPressCallback(struct _lv_timer_t* timer) {
-    UIViewService* service = static_cast<UIViewService*>(lv_timer_get_user_data(timer));
-    if (service && service->encoderEventHandler) {
-        service->encoderEventHandler->handleEncoderLongPress();
+void UIViewService::buttonLongPressCallback(struct _lv_timer_t* timer) {
+    UIViewService* service = static_cast<UIViewService*>(timer->user_data);
+    ButtonState* state = static_cast<ButtonState*>(timer->user_data);
+    
+    if (service && service->inputEventHandler && state) {
+        service->inputEventHandler->handleButtonLongPress(state->buttonId);
+        delete state; // Clean up the allocated state
     }
     lv_timer_del(timer);
 }
 
-// Handler methods called from InteractionService
+// Handler methods called from message processing
 void UIViewService::handleEncoderUp() {
-    printf("Encoder UP received from InteractionService\n");
-    scheduleEncoderEvent(EncoderEventsInterface::EventType::UP, 5);
+    printf("Encoder UP received\n");
+    scheduleEncoderEvent(EncoderEvent::UP, 5);
 }
 
 void UIViewService::handleEncoderDown() {
-    printf("Encoder DOWN received from InteractionService\n");
-    scheduleEncoderEvent(EncoderEventsInterface::EventType::DOWN, 5);
+    printf("Encoder DOWN received\n");
+    scheduleEncoderEvent(EncoderEvent::DOWN, 5);
 }
 
-void UIViewService::handleEncoderPress() {
-    scheduleEncoderEvent(EncoderEventsInterface::EventType::PRESS, 5);
+void UIViewService::handleButtonPress(int buttonId) {
+    printf("Button PRESS received: %d\n", buttonId);
+    scheduleButtonEvent(buttonId, false, 5);
 }
 
-void UIViewService::handleEncoderLongPress() {
-    scheduleEncoderEvent(EncoderEventsInterface::EventType::LONG_PRESS, 5);
+void UIViewService::handleButtonLongPress(int buttonId) {
+    printf("Button LONG PRESS received: %d\n", buttonId);
+    scheduleButtonEvent(buttonId, true, 5);
+}
+
+// MessageHandler interface implementation
+bool UIViewService::processMessage(const void* data, size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    
+    // Process the message as a control message
+    reflow_ControlsMessage message = reflow_ControlsMessage_init_zero;
+    pb_istream_t stream = pb_istream_from_buffer(static_cast<const pb_byte_t*>(data), size);
+    
+    if (!pb_decode(&stream, reflow_ControlsMessage_fields, &message)) {
+        // Failed to decode as a controls message
+        return false;
+    }
+    
+    // Process input events
+    if (message.which_payload == reflow_ControlsMessage_input_event_tag) {
+        auto& input = message.payload.input_event;
+        
+        // Process input events based on type
+        switch (input.type) {
+            case reflow_InputEvent_InputType_ENCODER_UP:
+                handleEncoderUp();
+                return true;
+            
+            case reflow_InputEvent_InputType_ENCODER_DOWN:
+                handleEncoderDown();
+                return true;
+            
+            case reflow_InputEvent_InputType_ENCODER_PRESS:
+                // Treat encoder press as ENCODER_BUTTON press
+                handleButtonPress(ButtonId::ENCODER_BUTTON);
+                return true;
+                
+            case reflow_InputEvent_InputType_ENCODER_LONG_PRESS:
+                // Treat encoder long press as ENCODER_BUTTON long press
+                handleButtonLongPress(ButtonId::ENCODER_BUTTON);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_1_PRESS:
+                handleButtonPress(ButtonId::BUTTON_1);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_1_LONG_PRESS:
+                handleButtonLongPress(ButtonId::BUTTON_1);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_2_PRESS:
+                handleButtonPress(ButtonId::BUTTON_2);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_2_LONG_PRESS:
+                handleButtonLongPress(ButtonId::BUTTON_2);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_3_PRESS:
+                handleButtonPress(ButtonId::BUTTON_3);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_3_LONG_PRESS:
+                handleButtonLongPress(ButtonId::BUTTON_3);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_4_PRESS:
+                handleButtonPress(ButtonId::BUTTON_4);
+                return true;
+                
+            case reflow_InputEvent_InputType_BUTTON_4_LONG_PRESS:
+                handleButtonLongPress(ButtonId::BUTTON_4);
+                return true;
+                
+            default:
+                return false;
+        }
+    }
+    
+    return false;
+}
+
+bool UIViewService::processMessage(const std::string& serialized) {
+    if (serialized.empty()) {
+        return false;
+    }
+    return processMessage(serialized.data(), serialized.size());
 }

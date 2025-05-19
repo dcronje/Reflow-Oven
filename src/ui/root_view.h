@@ -2,10 +2,10 @@
 
 #include "lvgl.h"
 #include "core/controller_collection.h"
-#include "core/encoder_events_interface.h"
+#include "core/input_events_interface.h"
 #include <memory>
 
-class RootView : public EncoderEventsInterface {
+class RootView : public InputEventsInterface {
 public:
     RootView();
     void init(lv_display_t* display);
@@ -14,17 +14,11 @@ public:
     // Top-level controller collection - made public for UIViewService access
     std::unique_ptr<ControllerCollection> controllerCollection;
 
-    // EncoderEventsInterface implementation
+    // InputEventsInterface implementation
     void handleEncoderUp() override;
     void handleEncoderDown() override;
-    void handleEncoderPress() override;
-    void handleEncoderLongPress() override;
-
-    // Keep button event handlers
-    void handleTopButtonPress();
-    void handleTopButtonLongPress();
-    void handleBottomButtonPress();
-    void handleBottomButtonLongPress();
+    void handleButtonPress(int buttonId) override;
+    void handleButtonLongPress(int buttonId) override;
 
 private:
     lv_display_t* display;

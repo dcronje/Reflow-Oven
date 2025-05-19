@@ -44,24 +44,7 @@ void RootView::update() {
     }
 }
 
-// Keep other button handlers
-void RootView::handleTopButtonPress() {
-    // Implementation goes here
-}
-
-void RootView::handleTopButtonLongPress() {
-    // Implementation goes here
-}
-
-void RootView::handleBottomButtonPress() {
-    // Implementation goes here
-}
-
-void RootView::handleBottomButtonLongPress() {
-    // Implementation goes here
-}
-
-// Add encoder event handlers
+// Encoder event handlers
 void RootView::handleEncoderUp() {
     if (controllerCollection) {
         controllerCollection->handleEncoderUp();
@@ -74,15 +57,90 @@ void RootView::handleEncoderDown() {
     }
 }
 
-void RootView::handleEncoderPress() {
+// Button event handlers
+void RootView::handleButtonPress(int buttonId) {
+    // Map button IDs to specific actions or forward to controller collection
     if (controllerCollection) {
-        controllerCollection->handleEncoderPress();
+        switch (buttonId) {
+            case ButtonId::ENCODER_BUTTON:
+                // Encoder button action (generally confirm/select)
+                printf("Encoder button pressed\n");
+                controllerCollection->handleButtonPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_1:
+                // Button 1 action (could be "back" or "menu")
+                printf("Button 1 pressed\n");
+                controllerCollection->handleButtonPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_2:
+                // Button 2 action (could be "ok" or "select")
+                printf("Button 2 pressed\n");
+                controllerCollection->handleButtonPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_3:
+                // Button 3 action (left/previous)
+                printf("Button 3 pressed\n");
+                // Optionally map to encoder up for navigation
+                controllerCollection->handleEncoderUp();
+                break;
+                
+            case ButtonId::BUTTON_4:
+                // Button 4 action (right/next)
+                printf("Button 4 pressed\n");
+                // Optionally map to encoder down for navigation
+                controllerCollection->handleEncoderDown();
+                break;
+                
+            default:
+                printf("Unknown button pressed: %d\n", buttonId);
+                controllerCollection->handleButtonPress(buttonId);
+                break;
+        }
     }
 }
 
-void RootView::handleEncoderLongPress() {
+void RootView::handleButtonLongPress(int buttonId) {
+    // Map button IDs to specific actions or forward to controller collection
     if (controllerCollection) {
-        controllerCollection->handleEncoderLongPress();
+        switch (buttonId) {
+            case ButtonId::ENCODER_BUTTON:
+                // Encoder button long press (could be "cancel" or "back")
+                printf("Encoder button long pressed\n");
+                controllerCollection->handleButtonLongPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_1:
+                // Button 1 long press action (could be "home" or "main menu")
+                printf("Button 1 long pressed\n");
+                controllerCollection->navigateTo("home"); // Always return to home
+                break;
+                
+            case ButtonId::BUTTON_2:
+                // Button 2 long press action
+                printf("Button 2 long pressed\n");
+                controllerCollection->handleButtonLongPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_3:
+                // Button 3 long press action
+                printf("Button 3 long pressed\n");
+                controllerCollection->handleButtonLongPress(buttonId);
+                break;
+                
+            case ButtonId::BUTTON_4:
+                // Button 4 long press action
+                printf("Button 4 long pressed\n");
+                controllerCollection->handleButtonLongPress(buttonId);
+                break;
+                
+            default:
+                printf("Unknown button long pressed: %d\n", buttonId);
+                controllerCollection->handleButtonLongPress(buttonId);
+                break;
+        }
     }
 }
 

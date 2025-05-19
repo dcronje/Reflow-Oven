@@ -1,7 +1,6 @@
 #include "services/door_service.h"
-#include "core/event_bus.h"
-#include "core/event_payload.h"
-#include "types/event_types.h"
+#include "core/message_event_bus.h"
+#include "core/message_event_adapter.h"
 #include "constants.h"
 #include "globals.h"
 #include "hardware/gpio.h"
@@ -9,6 +8,12 @@
 #include "hardware/adc.h"
 #include "pico/time.h"
 #include <algorithm> // For std::remove_if
+#include "pb_encode.h"
+#include "pb_decode.h"
+
+// Include generated proto files
+#include "generated/protos/common.pb.h"
+#include "generated/protos/hardware.pb.h"
 
 DoorService& DoorService::getInstance() {
     static DoorService instance;
@@ -76,8 +81,8 @@ void DoorService::enableServo() {
         // Enable pins after power is stable
         protectPins(false);
         
-        // Emit event
-        emitEvent(DoorEventType::DOOR_ENABLED, getPosition());
+        // Emit event using new message system
+        publishDoorEvent(DoorEventType::DOOR_ENABLED, getPosition());
     }
 }
 
@@ -89,8 +94,8 @@ void DoorService::disableServo() {
     gpio_put(SERVO_POWER_PIN, 0);
     servoEnabled = false;
     
-    // Emit event
-    emitEvent(DoorEventType::DOOR_DISABLED, getPosition());
+    // Emit event using new message system
+    publishDoorEvent(DoorEventType::DOOR_DISABLED, getPosition());
 }
 
 bool DoorService::isServoEnabled() const {
@@ -149,10 +154,10 @@ void DoorService::setPosition(uint8_t percent) {
     // Determine direction and emit appropriate event
     if (targetAngle > currentAngle) {
         direction = DoorDirection::OPENING;
-        emitEvent(DoorEventType::DOOR_OPENING, percent);
+        publishDoorEvent(DoorEventType::DOOR_OPENING, percent);
     } else if (targetAngle < currentAngle) {
         direction = DoorDirection::CLOSING;
-        emitEvent(DoorEventType::DOOR_CLOSING, percent);
+        publishDoorEvent(DoorEventType::DOOR_CLOSING, percent);
     } else {
         direction = DoorDirection::NONE;
     }
@@ -166,7 +171,7 @@ void DoorService::setPosition(uint8_t percent) {
     setRawAngle(targetAngle);
     
     // Emit position change event
-    emitEvent(DoorEventType::DOOR_POSITION, percent);
+    publishDoorEvent(DoorEventType::DOOR_POSITION, percent);
 }
 
 void DoorService::setCalibrationAngles(uint8_t closedAngle, uint8_t openAngle) {
@@ -248,6 +253,15 @@ void DoorService::readFeedback() {
     
     // Update current angle
     currentAngle = feedbackValue;
+    
+    // Periodically publish status (every ~1 second)
+    static uint32_t lastPublishTime = 0;
+    uint32_t currentTime = to_ms_since_boot(get_absolute_time());
+    
+    if (currentTime - lastPublishTime > 1000) {
+        publishDoorStatus(getPosition());
+        lastPublishTime = currentTime;
+    }
 }
 
 void DoorService::doorTaskWrapper(void* pvParameters) {
@@ -282,7 +296,7 @@ uint8_t DoorService::getCurrentRawAngle() const {
     return currentAngle;
 }
 
-// Add event handling implementations
+// Legacy event handling implementations
 
 void DoorService::addEventListener(DoorEventCallback callback) {
     // Add callback to listeners vector
@@ -306,37 +320,27 @@ void DoorService::emitEvent(DoorEventType type, int positionPercent) {
     // Set corresponding event group bits for FreeRTOS Events
     EventBits_t bits = 0;
     
-    // Also create an EventBus event for the new system
-    std::string eventName;
-    
     switch (type) {
         case DoorEventType::DOOR_OPENING:
             bits = DOOR_EVENT_OPENING;
-            eventName = EventNames::OPENING;
             break;
         case DoorEventType::DOOR_OPENED:
             bits = DOOR_EVENT_OPENED;
-            eventName = EventNames::OPENED;
             break;
         case DoorEventType::DOOR_CLOSING:
             bits = DOOR_EVENT_CLOSING;
-            eventName = EventNames::CLOSING;
             break;
         case DoorEventType::DOOR_CLOSED:
             bits = DOOR_EVENT_CLOSED;
-            eventName = EventNames::CLOSED;
             break;
         case DoorEventType::DOOR_ENABLED:
             bits = DOOR_EVENT_ENABLED;
-            eventName = "enabled";
             break;
         case DoorEventType::DOOR_DISABLED:
             bits = DOOR_EVENT_DISABLED;
-            eventName = "disabled";
             break;
         case DoorEventType::DOOR_POSITION:
             bits = DOOR_EVENT_POSITION;
-            eventName = "position";
             break;
     }
     
@@ -351,16 +355,6 @@ void DoorService::emitEvent(DoorEventType type, int positionPercent) {
         xEventGroupSetBits(doorEventGroup, bits);
     }
     
-    // Publish to the EventBus if we have a valid event name
-    if (!eventName.empty()) {
-        // Create payload with position data
-        void* payload = EventPayload::createIntPayload(positionPercent);
-        
-        // Create and post the event
-        Event event(EventTopics::DOOR, eventName, payload, sizeof(EventPayload::IntPayload));
-        EventBus::getInstance().postEvent(event);
-    }
-    
     // Notify all legacy listeners
     for (const auto& listener : eventListeners) {
         listener(doorEvent);
@@ -371,14 +365,14 @@ void DoorService::checkAndEmitLimitEvents() {
     // Check if door has just opened fully
     bool isOpen = isFullyOpen();
     if (isOpen && !wasFullyOpen) {
-        emitEvent(DoorEventType::DOOR_OPENED, 100);
+        publishDoorEvent(DoorEventType::DOOR_OPENED, 100);
     }
     wasFullyOpen = isOpen;
     
     // Check if door has just closed fully
     bool isClosed = isFullyClosed();
     if (isClosed && !wasFullyClosed) {
-        emitEvent(DoorEventType::DOOR_CLOSED, 0);
+        publishDoorEvent(DoorEventType::DOOR_CLOSED, 0);
     }
     wasFullyClosed = isClosed;
 }
@@ -406,4 +400,154 @@ void DoorService::open() {
 void DoorService::close() {
     // Close the door to 0% position
     setPosition(0);
+}
+
+// Implementation for MessageHandler
+void DoorService::processMessage(const void* data, size_t size) {
+    // Try to decode the message as a hardware message
+    reflow_HardwareMessage message = reflow_HardwareMessage_init_zero;
+    
+    // Create a stream for decoding
+    pb_istream_t stream = pb_istream_from_buffer((const pb_byte_t*)data, size);
+    
+    // Decode the message
+    bool status = pb_decode(&stream, reflow_HardwareMessage_fields, &message);
+    if (!status) {
+        // Failed to decode
+        return;
+    }
+    
+    // Check if this is a door command
+    if (message.which_payload != reflow_HardwareMessage_door_command_tag) {
+        // Not a door command, ignore
+        return;
+    }
+    
+    // Process the door command
+    const reflow_DoorCommand& command = message.payload.door_command;
+    
+    switch (command.command) {
+        case reflow_DoorCommand_CommandType_OPEN:
+            open();
+            break;
+            
+        case reflow_DoorCommand_CommandType_CLOSE:
+            close();
+            break;
+            
+        case reflow_DoorCommand_CommandType_SET_POSITION:
+            setPosition(command.position);
+            break;
+            
+        case reflow_DoorCommand_CommandType_ENABLE:
+            enableServo();
+            break;
+            
+        case reflow_DoorCommand_CommandType_DISABLE:
+            disableServo();
+            break;
+            
+        case reflow_DoorCommand_CommandType_CALIBRATE:
+            // Custom calibration logic would go here
+            break;
+            
+        default:
+            // Unknown command
+            break;
+    }
+}
+
+void DoorService::processMessage(const std::string& serialized) {
+    // Process serialized message by converting to binary first
+    processMessage(serialized.data(), serialized.size());
+}
+
+void DoorService::publishDoorStatus(uint8_t position) {
+    // Create a hardware message to wrap the door event
+    reflow_HardwareMessage message = reflow_HardwareMessage_init_zero;
+    
+    // Initialize the base message
+    message.has_base = true;
+    
+    // Set base message fields
+    message.base.sequence_id = MessageEventAdapter::getInstance().getNextMessageId();
+    message.base.timestamp = MessageEventAdapter::getInstance().getCurrentTimestamp();
+    message.base.priority = 1; // Normal priority
+    message.base.type = reflow_BaseMessage_MessageType_EVENT;
+    
+    // Set up the door event with status information
+    message.which_payload = reflow_HardwareMessage_door_event_tag;
+    message.payload.door_event.event = reflow_DoorEvent_EventType_POSITION_CHANGED;
+    message.payload.door_event.position = position;
+    message.payload.door_event.is_moving = direction != DoorDirection::NONE;
+    
+    // Serialize the message
+    uint8_t buffer[256];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+    bool status = pb_encode(&stream, reflow_HardwareMessage_fields, &message);
+    
+    if (status) {
+        // Publish via the message event adapter
+        MessageEventAdapter::getInstance().postMessage(buffer, stream.bytes_written);
+    }
+    
+    // Also emit legacy event for backward compatibility
+    emitEvent(DoorEventType::DOOR_POSITION, position);
+}
+
+void DoorService::publishDoorEvent(DoorEventType type, int positionPercent) {
+    // Create a hardware message to wrap the door event
+    reflow_HardwareMessage message = reflow_HardwareMessage_init_zero;
+    
+    // Initialize the base message
+    message.has_base = true;
+    
+    // Set base message fields
+    message.base.sequence_id = MessageEventAdapter::getInstance().getNextMessageId();
+    message.base.timestamp = MessageEventAdapter::getInstance().getCurrentTimestamp();
+    message.base.priority = 1; // Normal priority
+    message.base.type = reflow_BaseMessage_MessageType_EVENT;
+    
+    // Set up the door event
+    message.which_payload = reflow_HardwareMessage_door_event_tag;
+    message.payload.door_event.position = positionPercent;
+    message.payload.door_event.is_moving = direction != DoorDirection::NONE;
+    
+    // Map the event type
+    switch (type) {
+        case DoorEventType::DOOR_OPENING:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_OPENING;
+            break;
+        case DoorEventType::DOOR_OPENED:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_OPENED;
+            break;
+        case DoorEventType::DOOR_CLOSING:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_CLOSING;
+            break;
+        case DoorEventType::DOOR_CLOSED:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_CLOSED;
+            break;
+        case DoorEventType::DOOR_ENABLED:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_ENABLED;
+            break;
+        case DoorEventType::DOOR_DISABLED:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_DISABLED;
+            break;
+        case DoorEventType::DOOR_POSITION:
+            message.payload.door_event.event = reflow_DoorEvent_EventType_POSITION_CHANGED;
+            break;
+    }
+    
+    // Serialize the message
+    uint8_t buffer[256];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+    bool status = pb_encode(&stream, reflow_HardwareMessage_fields, &message);
+    
+    if (status) {
+        // Publish via the message event adapter
+        MessageEventAdapter::getInstance().postMessage(buffer, stream.bytes_written);
+    }
+    
+    // Also emit legacy event for backward compatibility
+    emitEvent(type, positionPercent);
 } 

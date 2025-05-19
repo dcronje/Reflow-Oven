@@ -3,6 +3,7 @@
 #include <string>
 #include "lvgl.h"
 #include "types/transitions.h"
+#include "core/input_events_interface.h"
 
 // Forward declarations
 class ControllerCollection;
@@ -29,11 +30,11 @@ public:
     // Called when this controller becomes visible
     virtual void didAppear() {}
 
-    // Optional input event handlers
+    // Input event handlers
     virtual void onEncoderUp() {}
     virtual void onEncoderDown() {}
-    virtual void onEncoderPress() {}
-    virtual void onEncoderLongPress() {}
+    virtual void onButtonPress(int buttonId) {}
+    virtual void onButtonLongPress(int buttonId) {}
 
     // Called once at startup
     virtual void init() {}

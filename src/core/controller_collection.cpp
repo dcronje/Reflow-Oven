@@ -115,11 +115,25 @@ void ControllerCollection::handleEncoderDown() {
 }
 
 void ControllerCollection::handleEncoderPress() {
-    if (impl->activeController) impl->activeController->onEncoderPress();
+    if (impl->activeController) {
+        // Convert encoder press to button press with ENCODER_BUTTON ID
+        impl->activeController->onButtonPress(ButtonId::ENCODER_BUTTON);
+    }
 }
 
 void ControllerCollection::handleEncoderLongPress() {
-    if (impl->activeController) impl->activeController->onEncoderLongPress();
+    if (impl->activeController) {
+        // Convert encoder long press to button long press with ENCODER_BUTTON ID
+        impl->activeController->onButtonLongPress(ButtonId::ENCODER_BUTTON);
+    }
+}
+
+void ControllerCollection::handleButtonPress(int buttonId) {
+    if (impl->activeController) impl->activeController->onButtonPress(buttonId);
+}
+
+void ControllerCollection::handleButtonLongPress(int buttonId) {
+    if (impl->activeController) impl->activeController->onButtonLongPress(buttonId);
 }
 
 void ControllerCollection::markDirty() {

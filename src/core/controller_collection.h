@@ -4,6 +4,7 @@
 #include <string>
 #include "types/transitions.h"
 #include "lvgl.h"
+#include "core/input_events_interface.h"
 
 // Forward declarations
 class Controller;
@@ -21,10 +22,17 @@ public:
 
     void update(); // optional
 
+    // Encoder event handlers
     void handleEncoderUp();
     void handleEncoderDown();
-    void handleEncoderPress();
-    void handleEncoderLongPress();
+    
+    // For compatibility with existing code
+    void handleEncoderPress();  // Maps to handleButtonPress(ENCODER_BUTTON)
+    void handleEncoderLongPress(); // Maps to handleButtonLongPress(ENCODER_BUTTON)
+
+    // Button event handlers
+    void handleButtonPress(int buttonId);
+    void handleButtonLongPress(int buttonId);
 
     void markDirty();
     bool isDirty() const;

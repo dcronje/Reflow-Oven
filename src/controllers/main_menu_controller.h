@@ -3,9 +3,12 @@
 #include <vector>
 #include "core/controller.h"
 #include "lvgl.h"
-#include "core/event_subscriber.h"
+#include "core/message_handler.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
 
-class MainMenuController : public Controller {
+class MainMenuController : public Controller, public MessageHandler {
 public:
     static MainMenuController& getInstance();
 
@@ -28,6 +31,10 @@ public:
     // Method to refresh the door status button - can be called from the main thread
     void refreshDoorStatusButton();
 
+    // MessageHandler interface implementation
+    bool processMessage(const void* data, size_t size) override;
+    bool processMessage(const std::string& serialized) override;
+
 private:
     MainMenuController() = default;
     ~MainMenuController();
@@ -37,16 +44,20 @@ private:
     int selectedIndex = 0;
     lv_timer_t* updateTimer = nullptr; // Timer for periodic UI updates
     
-    // Event handling
-    EventSubscriber eventSubscriber;
-    TaskHandle_t eventTaskHandle = nullptr;
+    // Message handling
+    QueueHandle_t messageQueue = nullptr;
+    TaskHandle_t messageTaskHandle = nullptr;
     
     void updateButtonFocus(bool animated = true);
     
-    // Event processing task
-    static void eventProcessingTask(void* pvParameters);
+    // Message processing task
+    static void messageProcessingTask(void* pvParameters);
     
     // Timer callback for UI updates
     static void updateTimerCallback(lv_timer_t* timer);
     void periodicUpdate();
+
+    // Process specific message types
+    bool processDoorMessage(const void* data, size_t size);
+    bool processSystemMessage(const void* data, size_t size);
 };

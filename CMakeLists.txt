@@ -100,6 +100,9 @@ file(GLOB SRC_FILES
     "${CMAKE_CURRENT_LIST_DIR}/src/library/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/controllers/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/ui/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/orchestrator/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/communications/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/generated/*.cpp"
 )
 
 add_executable(Reflow-Oven main.cpp ${SRC_FILES})
@@ -122,6 +125,7 @@ target_include_directories(Reflow-Oven PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/types
+        ${CMAKE_CURRENT_LIST_DIR}/src/generated
         ${CMAKE_CURRENT_LIST_DIR}/lib/nanopb
         ${CMAKE_CURRENT_LIST_DIR}/lib/lvgl
         # RTOS includes are handled by the FreeRTOS_Kernel_import.cmake
