@@ -1,38 +1,49 @@
 #pragma once
 
-#include "pico/stdlib.h"
+#include <pb.h>
+#include "pb_encode.h"
+#include "pb_decode.h"
+#include "core/service.h"
+#include "services/communication_service.h"
+#include "library/protos/common.pb.h"
+#include "library/protos/controls.pb.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "constants.h"
 
-class BuzzerService {
+class BuzzerService : public Service {
 public:
     static BuzzerService& getInstance();
 
-    void init();
+    // Initialization
+    void init() override;
+
+    // Enable/disable buzzer
     void setEnabled(bool enabled);
     bool isEnabled() const;
 
-    // Generic tone functions with frequencies around 4kHz baseline
-    void playHighTone(uint32_t duration_ms);    // 4.5kHz
-    void playMediumTone(uint32_t duration_ms);  // 4.0kHz
-    void playLowTone(uint32_t duration_ms);     // 3.5kHz
+    // Play different tones
+    void playHighTone(uint32_t duration_ms);
+    void playMediumTone(uint32_t duration_ms);
+    void playLowTone(uint32_t duration_ms);
+    void playTone(uint32_t frequency, uint32_t duration_ms);
+    void playPattern(uint32_t pattern, uint32_t frequency, uint32_t duration_ms);
 
 private:
-    BuzzerService();
-    void playTone(uint32_t frequency, uint32_t duration_ms);
+    BuzzerService() = default;
+    ~BuzzerService() = default;
+    BuzzerService(const BuzzerService&) = delete;
+    BuzzerService& operator=(const BuzzerService&) = delete;
+
+    // Task handling
     static void buzzerTaskWrapper(void* pvParameters);
     void buzzerTask();
 
-    static constexpr uint32_t BASE_FREQUENCY = 4000;  // 4kHz baseline
+    // Helper method to create and send a buzzer command
+    void sendBuzzerCommand(uint32_t pattern, uint32_t frequency, uint32_t duration_ms);
 
+    // Member variables
     bool enabled = true;
-    uint8_t buzzerPin;
-    TaskHandle_t taskHandle;
-    QueueHandle_t commandQueue;
-
-    struct BuzzerCommand {
-        uint32_t frequency;
-        uint32_t duration_ms;
-    };
+    TaskHandle_t taskHandle = nullptr;
 }; 

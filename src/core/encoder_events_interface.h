@@ -18,4 +18,14 @@ public:
     virtual void handleEncoderDown() = 0;
     virtual void handleEncoderPress() = 0;
     virtual void handleEncoderLongPress() = 0;
+
+    // Button event handlers
+    virtual void handleButton1Press() = 0;
+    virtual void handleButton1LongPress() = 0;
+    virtual void handleButton2Press() = 0;
+    virtual void handleButton2LongPress() = 0;
+    virtual void handleButton3Press() = 0;
+    virtual void handleButton3LongPress() = 0;
+    virtual void handleButton4Press() = 0;
+    virtual void handleButton4LongPress() = 0;
 }; 

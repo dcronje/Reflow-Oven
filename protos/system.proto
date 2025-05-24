@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package reflow;
+
+import "protos/common.proto";
+
+// Overall system states
+enum SystemState {
+  IDLE = 0;
+  INITIALIZING = 1;
+  CALIBRATING = 2;
+  PREHEATING = 3;
+  REFLOW_ACTIVE = 4;
+  COOLING = 5;
+  DOOR_OPENING = 6;
+  DOOR_OPEN = 7;
+  DOOR_CLOSING = 8;
+  SYSTEM_ERROR = 9;
+  SHUTDOWN = 10;
+}
+
+// System commands - high level operations
+message SystemCommand {
+  enum CommandType {
+    START_REFLOW = 0;
+    STOP_REFLOW = 1;
+    PAUSE_REFLOW = 2;
+    RESUME_REFLOW = 3;
+    START_CALIBRATION = 4;
+    EMERGENCY_STOP = 5;
+    RESET_SYSTEM = 6;
+    SHUTDOWN_SYSTEM = 7;
+  }
+  
+  CommandType command = 1;
+  string profile_name = 2;  // For START_REFLOW
+  map<string, string> parameters = 3;  // Additional command parameters
+}
+
+// System events - notifications about system state changes
+message SystemEvent {
+  SystemState old_state = 1;
+  SystemState new_state = 2;
+  string reason = 3;  // Why the state changed
+  uint64 timestamp = 4;  // When the change occurred
+}
+
+// System error event
+message SystemError {
+  enum ErrorSeverity {
+    INFO = 0;
+    WARNING = 1;
+    ERROR = 2;
+    CRITICAL = 3;
+  }
+  
+  ErrorSeverity severity = 1;
+  string error_code = 2;
+  string description = 3;
+  string component = 4;  // Which component reported the error
+}
+
+// Wrapper for all system messages
+message SystemMessage {
+  BaseMessage base = 1;
+  oneof payload {
+    SystemCommand command = 2;
+    SystemEvent event = 3;
+    SystemError error = 4;
+    CommandResponse response = 5;
+  }
+} 

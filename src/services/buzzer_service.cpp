@@ -1,4 +1,5 @@
 #include "services/buzzer_service.h"
+#include "services/communication_service.h"
 #include "constants.h"
 #include "hardware/pwm.h"
 
@@ -7,16 +8,8 @@ BuzzerService& BuzzerService::getInstance() {
     return instance;
 }
 
-BuzzerService::BuzzerService() : buzzerPin(BUZZER_GPIO) {
-    commandQueue = xQueueCreate(10, sizeof(BuzzerCommand));
-}
-
 void BuzzerService::init() {
-    gpio_set_function(buzzerPin, GPIO_FUNC_PWM);
-    gpio_set_dir(buzzerPin, GPIO_OUT);
-    gpio_put(buzzerPin, 0);
-
-    xTaskCreate(buzzerTaskWrapper, "BuzzerTask", 256, this, 1, &taskHandle);
+    // No hardware initialization needed since we're sending commands to the other Pico
 }
 
 void BuzzerService::setEnabled(bool enabled) {
@@ -43,8 +36,25 @@ void BuzzerService::playLowTone(uint32_t duration_ms) {
 }
 
 void BuzzerService::playTone(uint32_t frequency, uint32_t duration_ms) {
-    BuzzerCommand cmd = {frequency, duration_ms};
-    xQueueSend(commandQueue, &cmd, 0);
+    // Send a single beep command
+    sendBuzzerCommand(0, frequency, duration_ms);
+}
+
+void BuzzerService::playPattern(uint32_t pattern, uint32_t frequency, uint32_t duration_ms) {
+    // Send a pattern command
+    sendBuzzerCommand(pattern, frequency, duration_ms);
+}
+
+void BuzzerService::sendBuzzerCommand(uint32_t pattern, uint32_t frequency, uint32_t duration_ms) {
+    // Create and send a buzzer command to the other Pico
+    reflow_ControllerCommand command = reflow_ControllerCommand_init_zero;
+    command.command = reflow_ControllerCommand_CommandType_BUZZER_BEEP;
+    command.buzzer_pattern = pattern;
+    command.buzzer_frequency = frequency;
+    command.buzzer_duration = duration_ms;
+
+    // Send the command through the communication service
+    CommunicationService::getInstance().sendCommand(command);
 }
 
 void BuzzerService::buzzerTaskWrapper(void* pvParameters) {
@@ -52,29 +62,8 @@ void BuzzerService::buzzerTaskWrapper(void* pvParameters) {
 }
 
 void BuzzerService::buzzerTask() {
-    BuzzerCommand cmd;
+    // Task is kept for future use if needed, but currently just sleeps
     while (true) {
-        if (xQueueReceive(commandQueue, &cmd, portMAX_DELAY) == pdTRUE) {
-            // Calculate PWM parameters
-            uint32_t slice_num = pwm_gpio_to_slice_num(buzzerPin);
-            uint32_t chan = pwm_gpio_to_channel(buzzerPin);
-            
-            // Set PWM for square wave at specified frequency
-            float divider = 125.0f / cmd.frequency;  // 125MHz / frequency
-            uint16_t wrap = 65535;
-            
-            pwm_set_clkdiv(slice_num, divider);
-            pwm_set_wrap(slice_num, wrap);
-            pwm_set_chan_level(slice_num, chan, wrap / 2);  // 50% duty cycle for square wave
-            
-            // Enable PWM
-            pwm_set_enabled(slice_num, true);
-            
-            // Wait for duration
-            vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
-            
-            // Disable PWM
-            pwm_set_enabled(slice_num, false);
-        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 } 

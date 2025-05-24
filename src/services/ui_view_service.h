@@ -123,6 +123,16 @@ public:
     void handleEncoderPress();
     void handleEncoderLongPress();
     
+    // Button handlers
+    void handleButton1Press();
+    void handleButton1LongPress();
+    void handleButton2Press();
+    void handleButton2LongPress();
+    void handleButton3Press();
+    void handleButton3LongPress();
+    void handleButton4Press();
+    void handleButton4LongPress();
+    
     // Timer callbacks for safe LVGL interaction
     static void encoderUpCallback(struct _lv_timer_t* timer);
     static void encoderDownCallback(struct _lv_timer_t* timer);

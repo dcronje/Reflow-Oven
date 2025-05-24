@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package reflow;
+
+import "protos/common.proto";
+import "protos/system.proto";
+import "protos/hardware.proto";
+import "protos/controls.proto";
+import "protos/ui.proto";
+
+// ------------------------------
+// Top-level message envelope for all communications
+// ------------------------------
+message ReflowMessage {
+  BaseMessage base = 1;
+  
+  oneof payload {
+    // System messages
+    SystemCommand system_command = 10;
+    SystemEvent system_event = 11;
+    SystemError system_error = 12;
+    
+    // Hardware messages
+    DoorCommand door_command = 20;
+    DoorEvent door_event = 21;
+    TemperatureCommand temperature_command = 22;
+    TemperatureEvent temperature_event = 23;
+    ReflowProfileCommand profile_command = 24;
+    ReflowProfileEvent profile_event = 25;
+    
+    // Controller messages
+    InputEvent input_event = 30;
+    ControllerStatus controller_status = 31;
+    ControllerCommand controller_command = 32;
+    
+    // UI messages
+    NavigationCommand navigation_command = 40;
+    UIUpdateEvent ui_update = 41;
+    UserInteractionEvent user_interaction = 42;
+    
+    // Generic response
+    CommandResponse response = 99;
+  }
+} 

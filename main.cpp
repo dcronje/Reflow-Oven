@@ -16,6 +16,7 @@
 #include "services/interaction_service.h"
 #include "services/calibration_service.h"
 #include "services/buzzer_service.h"
+#include "services/communication_service.h"
 #include "controllers/main_menu_controller.h"
 #include "controllers/reflow_controller.h"
 #include "controllers/calibration_controller.h"
@@ -90,6 +91,9 @@ void uiTask(void* params) {
     
     // Register RootView as the encoder event handler
     uiService.registerEncoderEventHandler(rootView.get());
+    
+    // Initialize communication service before other services that depend on it
+    CommunicationService::getInstance().init();
     
     InteractionService::getInstance().init();
     BuzzerService::getInstance().init();

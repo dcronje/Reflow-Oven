@@ -1,22 +1,43 @@
 #pragma once
 
+#include <pb.h>
+#include "pb_encode.h"
+#include "pb_decode.h"
 #include "core/service.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include "timers.h"
 #include "pico/stdlib.h"
 #include <cstdint>
+#include "library/protos/common.pb.h"
+#include "library/protos/controls.pb.h"
 
 class UIViewService; // Forward declaration
 
-// Interaction types
+// Interaction types - mapped to all possible input events
 enum class Interaction {
     NONE,
-    ENTER,
-    BACK,
-    UP,
-    DOWN,
+    // Encoder interactions
+    ENCODER_UP,
+    ENCODER_DOWN,
+    ENCODER_PRESS,
+    ENCODER_LONG_PRESS,
+    
+    // Button 1 interactions
+    BUTTON_1_PRESS,
+    BUTTON_1_LONG_PRESS,
+    
+    // Button 2 interactions
+    BUTTON_2_PRESS,
+    BUTTON_2_LONG_PRESS,
+    
+    // Button 3 interactions
+    BUTTON_3_PRESS,
+    BUTTON_3_LONG_PRESS,
+    
+    // Button 4 interactions
+    BUTTON_4_PRESS,
+    BUTTON_4_LONG_PRESS
 };
 
 class InteractionService : public Service {
@@ -24,13 +45,11 @@ public:
     static InteractionService& getInstance();
 
     // Initialization and control
-    void init();
+    void init() override;
     void handleInteraction(Interaction interaction);
 
-    // ISR handlers
-    void gpioISR(uint gpio, uint32_t events);
-    static void debounceTimerCallback(TimerHandle_t xTimer);
-    static void longPressTimerCallback(TimerHandle_t xTimer);
+    // Input event handler for communication service
+    static void handleInputEvent(reflow_InputEvent_InputType type, int32_t encoder_steps);
 
 private:
     InteractionService() = default;
@@ -43,11 +62,6 @@ private:
 
     // Static member variables
     static QueueHandle_t interactionQueue;
-    static TimerHandle_t debounceTimer;
-    static TimerHandle_t longPressTimer;
-    static volatile bool buttonState;
-    static volatile bool longPressHandled;
-    static volatile int32_t encoderPosition;
     static UIViewService* uiService;
     TaskHandle_t taskHandle = nullptr;
 };

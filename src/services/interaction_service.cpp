@@ -3,16 +3,10 @@
 #include "isr_handlers.h"
 #include "services/ui_view_service.h"
 #include "services/buzzer_service.h"
+#include "services/communication_service.h"
 #include <cstdio>
 
 QueueHandle_t InteractionService::interactionQueue = nullptr;
-TimerHandle_t InteractionService::debounceTimer = nullptr;
-TimerHandle_t InteractionService::longPressTimer = nullptr;
-
-volatile bool InteractionService::buttonState = false;
-volatile bool InteractionService::longPressHandled = false;
-volatile int32_t InteractionService::encoderPosition = 0;
-
 UIViewService* InteractionService::uiService = nullptr;
 
 InteractionService& InteractionService::getInstance() {
@@ -22,27 +16,12 @@ InteractionService& InteractionService::getInstance() {
 
 void InteractionService::init() {
     uiService = &UIViewService::getInstance();
-
     interactionQueue = xQueueCreate(10, sizeof(Interaction));
 
-    // Encoder pin setup
-    gpio_init(ENCODER_CLK_GPIO);
-    gpio_init(ENCODER_DC_GPIO);
-    gpio_set_dir(ENCODER_CLK_GPIO, GPIO_IN);
-    gpio_set_dir(ENCODER_DC_GPIO, GPIO_IN);
+    // Register input event handler with communication service
+    CommunicationService::getInstance().registerInputEventHandler(handleInputEvent);
 
-    gpio_set_irq_enabled(ENCODER_CLK_GPIO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true); // ✅ REQUIRED
-    gpio_set_irq_enabled(ENCODER_DC_GPIO, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);  // optional, only if needed
-
-    // Button pin setup (encoder switch only)
-    debounceTimer = xTimerCreate("DebounceTimer", pdMS_TO_TICKS(DEBOUNCE_TIME_MS), pdFALSE, nullptr, debounceTimerCallback);
-    longPressTimer = xTimerCreate("LongPressTimer", pdMS_TO_TICKS(LONG_PRESS_TIME_MS), pdFALSE, nullptr, longPressTimerCallback);
-    
-    gpio_init(ENCODER_SW_GPIO);
-    gpio_set_dir(ENCODER_SW_GPIO, GPIO_IN);
-    gpio_pull_up(ENCODER_SW_GPIO); // Assuming active low button
-    gpio_set_irq_enabled(ENCODER_SW_GPIO, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true);
-
+    // Create interaction task
     xTaskCreate(interactionTask, "Interaction", 2048, this, 1, &taskHandle);
 }
 
@@ -50,86 +29,126 @@ void InteractionService::handleInteraction(Interaction interaction) {
     if (!uiService) return;
 
     switch (interaction) {
-        case Interaction::ENTER:
-            printf("ENTER COMMAND\n");
-            uiService->handleEncoderPress();
-            break;
-        case Interaction::BACK:
-            printf("BACK COMMAND\n");
-            uiService->handleEncoderLongPress();
-            break;
-        case Interaction::UP:
-            printf("UP COMMAND\n");
+        // Encoder interactions
+        case Interaction::ENCODER_UP:
+            printf("ENCODER UP\n");
             uiService->handleEncoderUp();
             break;
-        case Interaction::DOWN:
-            printf("DOWN COMMAND\n");
+        case Interaction::ENCODER_DOWN:
+            printf("ENCODER DOWN\n");
             uiService->handleEncoderDown();
             break;
-        default: break;
+        case Interaction::ENCODER_PRESS:
+            printf("ENCODER PRESS\n");
+            uiService->handleEncoderPress();
+            break;
+        case Interaction::ENCODER_LONG_PRESS:
+            printf("ENCODER LONG PRESS\n");
+            uiService->handleEncoderLongPress();
+            break;
+
+        // Button 1 interactions
+        case Interaction::BUTTON_1_PRESS:
+            printf("BUTTON 1 PRESS\n");
+            uiService->handleButton1Press();
+            break;
+        case Interaction::BUTTON_1_LONG_PRESS:
+            printf("BUTTON 1 LONG PRESS\n");
+            uiService->handleButton1LongPress();
+            break;
+
+        // Button 2 interactions
+        case Interaction::BUTTON_2_PRESS:
+            printf("BUTTON 2 PRESS\n");
+            uiService->handleButton2Press();
+            break;
+        case Interaction::BUTTON_2_LONG_PRESS:
+            printf("BUTTON 2 LONG PRESS\n");
+            uiService->handleButton2LongPress();
+            break;
+
+        // Button 3 interactions
+        case Interaction::BUTTON_3_PRESS:
+            printf("BUTTON 3 PRESS\n");
+            uiService->handleButton3Press();
+            break;
+        case Interaction::BUTTON_3_LONG_PRESS:
+            printf("BUTTON 3 LONG PRESS\n");
+            uiService->handleButton3LongPress();
+            break;
+
+        // Button 4 interactions
+        case Interaction::BUTTON_4_PRESS:
+            printf("BUTTON 4 PRESS\n");
+            uiService->handleButton4Press();
+            break;
+        case Interaction::BUTTON_4_LONG_PRESS:
+            printf("BUTTON 4 LONG PRESS\n");
+            uiService->handleButton4LongPress();
+            break;
+
+        default:
+            break;
     }
 }
 
-void InteractionService::gpioISR(uint gpio, uint32_t events) {
-    // Handle encoder
-    if (gpio == ENCODER_CLK_GPIO) {
-        static int32_t last_level_a = -1;
-        static int32_t lastEncoderPosition = 0;
-        int level_a = gpio_get(ENCODER_CLK_GPIO);
-        int level_b = gpio_get(ENCODER_DC_GPIO);
+void InteractionService::handleInputEvent(reflow_InputEvent_InputType type, int32_t encoder_steps) {
+    Interaction action = Interaction::NONE;
 
-        if (level_a != last_level_a) {
-            last_level_a = level_a;
-            if (level_a == 1) {
-                encoderPosition += (level_b == 1 ? 1 : -1);
-            } else {
-                encoderPosition += (level_b == 0 ? 1 : -1);
-            }
+    switch (type) {
+        // Encoder events
+        case reflow_InputEvent_InputType_ENCODER_UP:
+            action = Interaction::ENCODER_UP;
+            break;
+        case reflow_InputEvent_InputType_ENCODER_DOWN:
+            action = Interaction::ENCODER_DOWN;
+            break;
+        case reflow_InputEvent_InputType_ENCODER_PRESS:
+            action = Interaction::ENCODER_PRESS;
+            break;
+        case reflow_InputEvent_InputType_ENCODER_LONG_PRESS:
+            action = Interaction::ENCODER_LONG_PRESS;
+            break;
 
-            Interaction action = Interaction::NONE;
-            if (encoderPosition > lastEncoderPosition) {
-                action = Interaction::UP;
-            } else if (encoderPosition < lastEncoderPosition) {
-                action = Interaction::DOWN;
-            }
-            lastEncoderPosition = encoderPosition;
+        // Button 1 events
+        case reflow_InputEvent_InputType_BUTTON_1_PRESS:
+            action = Interaction::BUTTON_1_PRESS;
+            break;
+        case reflow_InputEvent_InputType_BUTTON_1_LONG_PRESS:
+            action = Interaction::BUTTON_1_LONG_PRESS;
+            break;
 
-            if (action != Interaction::NONE) {
-                xQueueSendFromISR(interactionQueue, &action, NULL);
-            }
-        }
+        // Button 2 events
+        case reflow_InputEvent_InputType_BUTTON_2_PRESS:
+            action = Interaction::BUTTON_2_PRESS;
+            break;
+        case reflow_InputEvent_InputType_BUTTON_2_LONG_PRESS:
+            action = Interaction::BUTTON_2_LONG_PRESS;
+            break;
+
+        // Button 3 events
+        case reflow_InputEvent_InputType_BUTTON_3_PRESS:
+            action = Interaction::BUTTON_3_PRESS;
+            break;
+        case reflow_InputEvent_InputType_BUTTON_3_LONG_PRESS:
+            action = Interaction::BUTTON_3_LONG_PRESS;
+            break;
+
+        // Button 4 events
+        case reflow_InputEvent_InputType_BUTTON_4_PRESS:
+            action = Interaction::BUTTON_4_PRESS;
+            break;
+        case reflow_InputEvent_InputType_BUTTON_4_LONG_PRESS:
+            action = Interaction::BUTTON_4_LONG_PRESS;
+            break;
+
+        default:
+            break;
     }
-    // Handle encoder button
-    else if (gpio == ENCODER_SW_GPIO) {
-        BaseType_t higherPriorityTaskWoken = pdFALSE;
-        xTimerResetFromISR(debounceTimer, &higherPriorityTaskWoken);
-    }
-}
 
-void InteractionService::debounceTimerCallback(TimerHandle_t xTimer) {
-    auto& instance = getInstance();
-    bool currentLevel = gpio_get(ENCODER_SW_GPIO) == 0; // Assuming active low
-    
-    if (currentLevel != instance.buttonState) {
-        instance.buttonState = currentLevel;
-        if (currentLevel) {
-            xTimerStart(instance.longPressTimer, 0);
-            instance.longPressHandled = false;
-        } else {
-            xTimerStop(instance.longPressTimer, 0);
-            if (!instance.longPressHandled) {
-                Interaction action = Interaction::ENTER;
-                xQueueSend(instance.interactionQueue, &action, 0);
-            }
-        }
+    if (action != Interaction::NONE) {
+        xQueueSend(interactionQueue, &action, 0);
     }
-}
-
-void InteractionService::longPressTimerCallback(TimerHandle_t xTimer) {
-    auto& instance = getInstance();
-    instance.longPressHandled = true;
-    Interaction action = Interaction::BACK;
-    xQueueSend(instance.interactionQueue, &action, 0);
 }
 
 void InteractionService::interactionTask(void* params) {

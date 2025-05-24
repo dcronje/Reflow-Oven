@@ -86,6 +86,80 @@ void RootView::handleEncoderLongPress() {
     }
 }
 
+// Add button event handlers
+void RootView::handleButton1Press() {
+    if (controllerCollection) {
+        // Forward to active controller if it implements button handlers
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton1Press();
+        }
+    }
+}
+
+void RootView::handleButton1LongPress() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton1LongPress();
+        }
+    }
+}
+
+void RootView::handleButton2Press() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton2Press();
+        }
+    }
+}
+
+void RootView::handleButton2LongPress() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton2LongPress();
+        }
+    }
+}
+
+void RootView::handleButton3Press() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton3Press();
+        }
+    }
+}
+
+void RootView::handleButton3LongPress() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton3LongPress();
+        }
+    }
+}
+
+void RootView::handleButton4Press() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton4Press();
+        }
+    }
+}
+
+void RootView::handleButton4LongPress() {
+    if (controllerCollection) {
+        auto* controller = controllerCollection->currentController();
+        if (controller) {
+            controller->onButton4LongPress();
+        }
+    }
+}
+
 
 
 

@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package reflow;
+
+import "protos/common.proto";
+
+// ------------------------------
+// Door-related messages
+// ------------------------------
+message DoorCommand {
+  enum CommandType {
+    OPEN = 0;
+    CLOSE = 1;
+    SET_POSITION = 2;
+    CALIBRATE = 3;
+    ENABLE = 4;
+    DISABLE = 5;
+  }
+  
+  CommandType command = 1;
+  int32 position = 2;  // 0-100 for SET_POSITION
+}
+
+message DoorEvent {
+  enum EventType {
+    OPENED = 0;
+    CLOSED = 1;
+    OPENING = 2;
+    CLOSING = 3;
+    POSITION_CHANGED = 4;
+    ENABLED = 5;
+    DISABLED = 6;
+    CALIBRATED = 7;
+  }
+  
+  EventType event = 1;
+  int32 position = 2;  // Current position 0-100
+  bool is_moving = 3;  // Whether the door is currently in motion
+}
+
+// ------------------------------
+// Temperature-related messages
+// ------------------------------
+message TemperatureCommand {
+  enum CommandType {
+    SET_TARGET = 0;
+    ENABLE_HEATER = 1;
+    DISABLE_HEATER = 2;
+    CALIBRATE = 3;
+  }
+  
+  CommandType command = 1;
+  float target_temperature = 2;  // In degrees Celsius
+}
+
+message TemperatureEvent {
+  enum EventType {
+    TEMPERATURE_CHANGED = 0;
+    TARGET_REACHED = 1;
+    LIMIT_EXCEEDED = 2;
+    HEATER_ENABLED = 3;
+    HEATER_DISABLED = 4;
+  }
+  
+  EventType event = 1;
+  float current_temperature = 2;  // In degrees Celsius
+  float target_temperature = 3;   // Current target
+  float rate_of_change = 4;       // Degrees per second
+  bool heater_active = 5;         // Whether the heater is currently on
+}
+
+// ------------------------------
+// Reflow profile execution
+// ------------------------------
+message ReflowProfileCommand {
+  enum CommandType {
+    START_PROFILE = 0;
+    PAUSE_PROFILE = 1;
+    RESUME_PROFILE = 2;
+    STOP_PROFILE = 3;
+    ADVANCE_STAGE = 4;
+  }
+  
+  CommandType command = 1;
+  string profile_name = 2;
+}
+
+message ReflowProfileEvent {
+  enum EventType {
+    STARTED = 0;
+    PAUSED = 1;
+    RESUMED = 2;
+    STOPPED = 3;
+    STAGE_CHANGED = 4;
+    COMPLETED = 5;
+    FAILED = 6;
+  }
+  
+  EventType event = 1;
+  string profile_name = 2;
+  string current_stage = 3;
+  uint32 elapsed_time = 4;      // Time in seconds since start
+  uint32 remaining_time = 5;    // Estimated time remaining
+  float target_temperature = 6; // Current target from profile
+  string failure_reason = 7;
+}
+
+// ------------------------------
+// Combined hardware message
+// ------------------------------
+message HardwareMessage {
+  BaseMessage base = 1;
+  oneof payload {
+    // Door messages
+    DoorCommand door_command = 10;
+    DoorEvent door_event = 11;
+    
+    // Temperature messages
+    TemperatureCommand temperature_command = 20;
+    TemperatureEvent temperature_event = 21;
+    
+    // Reflow profile messages
+    ReflowProfileCommand profile_command = 30;
+    ReflowProfileEvent profile_event = 31;
+    
+    // Response
+    CommandResponse response = 99;
+  }
+} 

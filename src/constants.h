@@ -9,10 +9,7 @@ const int COOLING_FAN_PWM_GPIO = 2; // GPIO pin for the cooling fan
 const int LIGHTS_GPIO = 3; // GPIO pin for the cooling fan tachometer
 const int HEATER_SSR_GPIO = 4; // GPIO pin for the element SSR
 const int SSR_TEMP_GPIO = 5; // GPIO pin for the SSR temperature sensor
-const int BUZZER_GPIO = 6; // GPIO pin for the buzzer
-const int ENCODER_DC_GPIO = 7; // GPIO pin for the encoder data
-const int ENCODER_CLK_GPIO = 8; // GPIO pin for the encoder clock
-const int ENCODER_SW_GPIO = 9; // GPIO pin for the encoder switch
+
 const int DISPLAY_BACKLIGHT_GPIO = 10; // GPIO pin for the display backlight
 const int DISPLAY_SPI_RST_GPIO = 11;  // Reset (RST) – GPIO 13
 const int DISPLAY_SPI_DC_GPIO = 12;   // Data/Command (DC) – GPIO 14
@@ -78,4 +75,12 @@ const int QUEUE_WAIT_TIME_MS = 10;    // Queue wait time in milliseconds
 #define DISPLAY_ROTATION ST7789_TFT::TFT_Degrees_90  // Rotate 90 degrees for landscape orientation
 #define DISPLAY_BACKLIGHT_PWM_WRAP 65535
 
+// UART configuration
+const int UART_TX_GPIO = 8;
+const int UART_RX_GPIO = 9;
 
+#define UART_BAUD_RATE 115200
+#define UART uart1
+
+// Buzzer constants
+#define BASE_FREQUENCY 4000  // Base frequency in Hz (4.0kHz)

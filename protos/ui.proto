@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package reflow;
+
+import "protos/common.proto";
+
+// ------------------------------
+// UI Navigation
+// ------------------------------
+message NavigationCommand {
+  enum NavigationType {
+    NAVIGATE_TO = 0;
+    NAVIGATE_BACK = 1;
+    SHOW_POPUP = 2;
+    HIDE_POPUP = 3;
+    SHOW_DIALOG = 4;
+    HIDE_DIALOG = 5;
+  }
+  
+  NavigationType type = 1;
+  string target_screen = 2;    // For NAVIGATE_TO
+  string transition_style = 3; // e.g., "slide_left", "fade"
+  uint32 transition_time_ms = 4;
+  map<string, string> parameters = 5; // Screen parameters
+}
+
+// ------------------------------
+// UI Update Events
+// ------------------------------
+message UIUpdateEvent {
+  enum UpdateType {
+    SCREEN_LOADED = 0;
+    SCREEN_UNLOADED = 1;
+    ELEMENT_UPDATED = 2;
+    FOCUS_CHANGED = 3;
+    ANIMATION_COMPLETED = 4;
+  }
+  
+  UpdateType type = 1;
+  string screen_id = 2;
+  string element_id = 3;  // For ELEMENT_UPDATED, FOCUS_CHANGED
+  map<string, string> details = 4;
+}
+
+// ------------------------------
+// User Interaction Events
+// ------------------------------
+message UserInteractionEvent {
+  enum InteractionType {
+    BUTTON_PRESSED = 0;
+    ITEM_SELECTED = 1;
+    VALUE_CHANGED = 2;
+    SLIDER_MOVED = 3;
+    GESTURE_DETECTED = 4;
+  }
+  
+  InteractionType type = 1;
+  string element_id = 2;
+  string screen_id = 3;
+  string value = 4;       // New value for VALUE_CHANGED, item ID for ITEM_SELECTED
+  int32 numeric_value = 5; // For slider positions, etc.
+}
+
+// ------------------------------
+// Combined UI Message
+// ------------------------------
+message UIMessage {
+  BaseMessage base = 1;
+  oneof payload {
+    NavigationCommand navigation = 2;
+    UIUpdateEvent update = 3;
+    UserInteractionEvent interaction = 4;
+    CommandResponse response = 5;
+  }
+} 

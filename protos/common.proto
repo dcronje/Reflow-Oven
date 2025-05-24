@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package reflow;
+
+// Base message structure all messages derive from
+message BaseMessage {
+  enum MessageType {
+    COMMAND = 0;
+    EVENT = 1;
+    QUERY = 2;
+    RESPONSE = 3;
+  }
+  
+  MessageType type = 1;
+  uint32 sequence_id = 2;     // For tracking requests/responses
+  uint64 timestamp = 3;       // When the message was created
+  uint32 priority = 4;        // Message priority (0=highest)
+}
+
+// Result status for command responses
+enum ResultStatus {
+  SUCCESS = 0;
+  ERROR = 1;
+  INVALID_COMMAND = 2;
+  NOT_IMPLEMENTED = 3;
+  TIMEOUT = 4;
+}
+
+// Generic response for commands
+message CommandResponse {
+  ResultStatus status = 1;
+  string message = 2;  // Optional detail message
+  uint32 original_sequence_id = 3;  // ID of the original command
+} 

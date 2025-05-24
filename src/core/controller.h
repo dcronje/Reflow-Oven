@@ -35,6 +35,16 @@ public:
     virtual void onEncoderPress() {}
     virtual void onEncoderLongPress() {}
 
+    // Button event handlers
+    virtual void onButton1Press() {}
+    virtual void onButton1LongPress() {}
+    virtual void onButton2Press() {}
+    virtual void onButton2LongPress() {}
+    virtual void onButton3Press() {}
+    virtual void onButton3LongPress() {}
+    virtual void onButton4Press() {}
+    virtual void onButton4LongPress() {}
+
     // Called once at startup
     virtual void init() {}
 

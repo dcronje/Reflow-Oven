@@ -63,7 +63,7 @@ set(LV_CONF_PATH "${CMAKE_SOURCE_DIR}/src/lv_conf.h")
 add_definitions(-DLV_CONF_PATH=\"${CMAKE_SOURCE_DIR}/src/lv_conf.h\")
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/onewire)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/nanopb)
+add_subdirectory(${CMAKE_SOURCE_DIR}/../../libs/nanopb ${CMAKE_BINARY_DIR}/nanopb)
 
 file(REMOVE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/lvgl/src/draw/sw/blend/helium/lv_blend_helium.S
@@ -98,8 +98,10 @@ file(GLOB SRC_FILES
     "${CMAKE_CURRENT_LIST_DIR}/src/services/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/models/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/library/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/library/protos/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/controllers/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/ui/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/library/protos/*.c" 
 )
 
 add_executable(Reflow-Oven main.cpp ${SRC_FILES})
@@ -122,8 +124,9 @@ target_include_directories(Reflow-Oven PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/types
-        ${CMAKE_CURRENT_LIST_DIR}/lib/nanopb
+        ${CMAKE_SOURCE_DIR}/../../libs/nanopb
         ${CMAKE_CURRENT_LIST_DIR}/lib/lvgl
+        ${CMAKE_CURRENT_LIST_DIR}/src/library
         # RTOS includes are handled by the FreeRTOS_Kernel_import.cmake
 )
 
@@ -134,12 +137,14 @@ target_link_libraries(Reflow-Oven
         hardware_pio
         hardware_pwm
         hardware_flash
+        hardware_dma
         hardware_adc
         pico_multicore           # Explicitly link multicore library for dual-core operation
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4
         pico_one_wire
         lvgl
+        protobuf-nanopb-static
         )
 
 pico_add_extra_outputs(Reflow-Oven)

@@ -72,7 +72,6 @@ void UIViewService::initDisplay() {
 
     // Set flush callback for pushing pixels to ST7789 over SPI
     lv_display_set_flush_cb(display, [](lv_display_t* disp, const lv_area_t* area, uint8_t* color_p) {
-        printf("Flush callback\n");
         UIViewService::getInstance().setAddressWindow(area->x1, area->y1, area->x2, area->y2);
         UIViewService::getInstance().st7789_send_command(ST7789_RAMWR);
         gpio_put(DISPLAY_SPI_DC_GPIO, 1);  // Data mode
@@ -305,4 +304,54 @@ void UIViewService::handleEncoderPress() {
 
 void UIViewService::handleEncoderLongPress() {
     scheduleEncoderEvent(EncoderEventsInterface::EventType::LONG_PRESS, 5);
+}
+
+// Button handlers
+void UIViewService::handleButton1Press() {
+    // Forward to encoder event handler if it exists
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton1Press();
+    }
+}
+
+void UIViewService::handleButton1LongPress() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton1LongPress();
+    }
+}
+
+void UIViewService::handleButton2Press() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton2Press();
+    }
+}
+
+void UIViewService::handleButton2LongPress() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton2LongPress();
+    }
+}
+
+void UIViewService::handleButton3Press() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton3Press();
+    }
+}
+
+void UIViewService::handleButton3LongPress() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton3LongPress();
+    }
+}
+
+void UIViewService::handleButton4Press() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton4Press();
+    }
+}
+
+void UIViewService::handleButton4LongPress() {
+    if (encoderEventHandler) {
+        encoderEventHandler->handleButton4LongPress();
+    }
 }
