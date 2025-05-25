@@ -1,0 +1,25 @@
+#pragma once
+
+#include "lvgl.h"
+
+// Heat and Danger Symbols
+#define CUSTOM_SYMBOL_FIRE           "\xef\x81\xad"  // 0xf06d
+#define CUSTOM_SYMBOL_TEMP_HIGH      "\xef\x9d\xa9"  // 0xf769
+#define CUSTOM_SYMBOL_RADIATION      "\xef\x9e\xb9"  // 0xf7b9
+#define CUSTOM_SYMBOL_BIOHAZARD      "\xef\x9e\x80"  // 0xf780
+#define CUSTOM_SYMBOL_SKULL          "\xef\x95\x8c"  // 0xf54c
+
+// Combined warning symbols
+#define CUSTOM_SYMBOL_HEAT_WARNING   CUSTOM_SYMBOL_FIRE " " LV_SYMBOL_WARNING
+#define CUSTOM_SYMBOL_DANGER_WARNING CUSTOM_SYMBOL_RADIATION " " LV_SYMBOL_WARNING
+#define CUSTOM_SYMBOL_CRITICAL       CUSTOM_SYMBOL_SKULL " " LV_SYMBOL_WARNING
+
+// Temperature status symbols
+#define CUSTOM_SYMBOL_TEMP_NORMAL    CUSTOM_SYMBOL_TEMP_HIGH " OK"
+#define CUSTOM_SYMBOL_TEMP_WARNING   CUSTOM_SYMBOL_TEMP_HIGH " " LV_SYMBOL_WARNING
+#define CUSTOM_SYMBOL_TEMP_DANGER    CUSTOM_SYMBOL_TEMP_HIGH " " CUSTOM_SYMBOL_FIRE
+
+// Safety status symbols
+#define CUSTOM_SYMBOL_SAFETY_OK      LV_SYMBOL_OK " Safe"
+#define CUSTOM_SYMBOL_SAFETY_WARNING CUSTOM_SYMBOL_RADIATION " Warning"
+#define CUSTOM_SYMBOL_SAFETY_DANGER  CUSTOM_SYMBOL_BIOHAZARD " Danger" 

@@ -84,33 +84,105 @@ lv_style_t* getTitleLabelStyle() {
     return &styleTitleLabel;
 }
 
-lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness,
-                               lv_color_t textColor, lv_color_t textOutlineColor, int textOutlineThickness) {
-    const int height = 40;
-    const int stripeWidth = stripeThickness;        // Width of black diagonal stripes
-    const int yellowWidth = stripeThickness * 0.7;  // Width of yellow areas between stripes
+// lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int stripeThickness,
+//                                lv_color_t textColor, lv_color_t textOutlineColor, int textOutlineThickness) {
+//     const int height = 40;
+//     const int stripeWidth = stripeThickness;        // Width of black diagonal stripes
+//     const int yellowWidth = stripeThickness * 0.7;  // Width of yellow areas between stripes
+//     const int stripeSpacing = stripeWidth + yellowWidth;
+//     const int stripeOvershoot = height / 2;
+
+//     static lv_color_t bg_buf[DISPLAY_WIDTH * 60];
+//     lv_obj_t* canvas = lv_canvas_create(parent);
+//     lv_canvas_set_buffer(canvas, bg_buf, width, height, LV_COLOR_FORMAT_NATIVE);
+
+//     // 🔥 This line is crucial to avoid extra spacing
+//     lv_obj_set_size(canvas, width, height);
+
+//     // ✅ Add: Prevent layout expansion caused by children
+//     lv_obj_clear_flag(canvas, LV_OBJ_FLAG_SCROLLABLE);  // Prevent layout flag issues
+//     lv_obj_set_scrollbar_mode(canvas, LV_SCROLLBAR_MODE_OFF); // Ensure no scrollbars
+//     lv_obj_set_style_max_height(canvas, height, 0);      // Cap maximum height
+//     lv_obj_set_style_min_height(canvas, height, 0);      // Force minimum height
+//     lv_obj_set_style_clip_corner(canvas, true, 0);       // Clip overflow
+
+//     // Cleanup styling
+//     lv_obj_set_style_pad_all(canvas, 0, 0);
+//     lv_obj_set_style_margin_all(canvas, 0, 0);
+//     lv_obj_set_style_border_width(canvas, 0, 0);
+
+//     lv_canvas_fill_bg(canvas, CYBER_COLOR_ACCENT, LV_OPA_COVER);
+
+//     lv_layer_t layer;
+//     lv_canvas_init_layer(canvas, &layer);
+
+//     for (int x = -40; x < width; x += stripeSpacing) {
+//         lv_draw_line_dsc_t line_dsc;
+//         lv_draw_line_dsc_init(&line_dsc);
+//         line_dsc.color = lv_color_black();
+//         line_dsc.width = stripeWidth;
+
+//         line_dsc.p1.x = x;
+//         line_dsc.p1.y = -stripeOvershoot;
+//         line_dsc.p2.x = x + height;
+//         line_dsc.p2.y = height + stripeOvershoot;
+//         lv_draw_line(&layer, &line_dsc);
+//     }
+
+//     lv_canvas_finish_layer(canvas, &layer);
+
+//     // Create text outline using multiple shadow labels
+//     const int outlineOffset = textOutlineThickness;
+//     lv_point_t offsets[8] = {
+//         {-outlineOffset, -outlineOffset},
+//         { 0,             -outlineOffset},
+//         { outlineOffset, -outlineOffset},
+//         {-outlineOffset,  0},
+//         { outlineOffset,  0},
+//         {-outlineOffset,  outlineOffset},
+//         { 0,              outlineOffset},
+//         { outlineOffset,  outlineOffset}
+//     };
+
+//     for (int i = 0; i < 8; ++i) {
+//         lv_obj_t* shadow = lv_label_create(canvas);
+//         lv_label_set_text(shadow, text);
+//         lv_obj_set_style_text_color(shadow, textOutlineColor, 0);
+//         lv_obj_set_style_text_font(shadow, &lv_font_montserrat_20, 0);
+//         lv_obj_align(shadow, LV_ALIGN_CENTER, offsets[i].x, offsets[i].y);
+
+//         // ✅ Add: Constrain child label height
+//         lv_obj_set_style_pad_all(shadow, 0, 0);
+//         lv_obj_set_style_margin_all(shadow, 0, 0);
+//     }
+
+//     lv_obj_t* label = lv_label_create(canvas);
+//     lv_label_set_text(label, text);
+//     lv_obj_set_style_text_color(label, textColor, 0);
+//     lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+//     lv_obj_center(label);
+
+//     // ✅ Add: Constrain main label height
+//     lv_obj_set_style_pad_all(label, 0, 0);
+//     lv_obj_set_style_margin_all(label, 0, 0);
+
+//     return canvas;
+// }
+
+// lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text) {
+//     return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 12, lv_color_white(), lv_color_black(), 1);
+// }
+
+// === Common Utility for Drawing Stripes ===
+static void drawStripedBackground(lv_obj_t* canvas, int width, int height, int stripeThickness) {
+    const int stripeWidth = stripeThickness;
+    const int yellowWidth = stripeThickness * 0.7;
     const int stripeSpacing = stripeWidth + yellowWidth;
     const int stripeOvershoot = height / 2;
 
     static lv_color_t bg_buf[DISPLAY_WIDTH * 60];
-    lv_obj_t* canvas = lv_canvas_create(parent);
     lv_canvas_set_buffer(canvas, bg_buf, width, height, LV_COLOR_FORMAT_NATIVE);
-
-    // 🔥 This line is crucial to avoid extra spacing
     lv_obj_set_size(canvas, width, height);
-
-    // ✅ Add: Prevent layout expansion caused by children
-    lv_obj_clear_flag(canvas, LV_OBJ_FLAG_SCROLLABLE);  // Prevent layout flag issues
-    lv_obj_set_scrollbar_mode(canvas, LV_SCROLLBAR_MODE_OFF); // Ensure no scrollbars
-    lv_obj_set_style_max_height(canvas, height, 0);      // Cap maximum height
-    lv_obj_set_style_min_height(canvas, height, 0);      // Force minimum height
-    lv_obj_set_style_clip_corner(canvas, true, 0);       // Clip overflow
-
-    // Cleanup styling
-    lv_obj_set_style_pad_all(canvas, 0, 0);
-    lv_obj_set_style_margin_all(canvas, 0, 0);
-    lv_obj_set_style_border_width(canvas, 0, 0);
-
     lv_canvas_fill_bg(canvas, CYBER_COLOR_ACCENT, LV_OPA_COVER);
 
     lv_layer_t layer;
@@ -130,18 +202,27 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
     }
 
     lv_canvas_finish_layer(canvas, &layer);
+}
 
-    // Create text outline using multiple shadow labels
-    const int outlineOffset = textOutlineThickness;
+// === Label with Optional Parameters ===
+lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width, int height, int stripeThickness,
+                                  lv_color_t textColor, lv_color_t textOutlineColor, int textOutlineThickness) {
+    lv_obj_t* canvas = lv_canvas_create(parent);
+    drawStripedBackground(canvas, width, height, stripeThickness);
+
+    lv_obj_clear_flag(canvas, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(canvas, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_clip_corner(canvas, true, 0);
+    lv_obj_set_style_pad_all(canvas, 0, 0);
+    lv_obj_set_style_margin_all(canvas, 0, 0);
+    lv_obj_set_style_border_width(canvas, 0, 0);
+
+    // Text outline
+    const int offset = textOutlineThickness;
     lv_point_t offsets[8] = {
-        {-outlineOffset, -outlineOffset},
-        { 0,             -outlineOffset},
-        { outlineOffset, -outlineOffset},
-        {-outlineOffset,  0},
-        { outlineOffset,  0},
-        {-outlineOffset,  outlineOffset},
-        { 0,              outlineOffset},
-        { outlineOffset,  outlineOffset}
+        {-offset, -offset}, {0, -offset}, {offset, -offset},
+        {-offset, 0},                 {offset, 0},
+        {-offset, offset}, {0, offset}, {offset, offset}
     };
 
     for (int i = 0; i < 8; ++i) {
@@ -150,8 +231,6 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
         lv_obj_set_style_text_color(shadow, textOutlineColor, 0);
         lv_obj_set_style_text_font(shadow, &lv_font_montserrat_20, 0);
         lv_obj_align(shadow, LV_ALIGN_CENTER, offsets[i].x, offsets[i].y);
-
-        // ✅ Add: Constrain child label height
         lv_obj_set_style_pad_all(shadow, 0, 0);
         lv_obj_set_style_margin_all(shadow, 0, 0);
     }
@@ -161,8 +240,6 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
     lv_obj_set_style_text_color(label, textColor, 0);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
     lv_obj_center(label);
-
-    // ✅ Add: Constrain main label height
     lv_obj_set_style_pad_all(label, 0, 0);
     lv_obj_set_style_margin_all(label, 0, 0);
 
@@ -170,7 +247,36 @@ lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text, int width,
 }
 
 lv_obj_t* createStripedTitleLabel(lv_obj_t* parent, const char* text) {
-    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 12, lv_color_white(), lv_color_black(), 1);
+    return createStripedTitleLabel(parent, text, DISPLAY_WIDTH, 40, 12, lv_color_white(), lv_color_black(), 1);
+}
+
+// === Striped Button with Overload ===
+lv_obj_t* createStripedButton(lv_obj_t* parent, const char* text, int width, int height, int stripeThickness,
+                              lv_color_t textColor, lv_color_t textOutlineColor, int textOutlineThickness) {
+    lv_obj_t* canvas = createStripedTitleLabel(parent, text, width, height, stripeThickness, textColor, textOutlineColor, textOutlineThickness);
+    lv_obj_add_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+    return canvas;
+}
+
+lv_obj_t* createStripedButton(lv_obj_t* parent, const char* text) {
+    return createStripedButton(parent, text, DISPLAY_WIDTH, 40, 12, lv_color_white(), lv_color_black(), 1);
+}
+
+// === Striped Container (No text) ===
+lv_obj_t* createStripedContainer(lv_obj_t* parent, int width, int height, int stripeThickness) {
+    lv_obj_t* canvas = lv_canvas_create(parent);
+    drawStripedBackground(canvas, width, height, stripeThickness);
+    lv_obj_clear_flag(canvas, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(canvas, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_clip_corner(canvas, true, 0);
+    lv_obj_set_style_pad_all(canvas, 0, 0);
+    lv_obj_set_style_margin_all(canvas, 0, 0);
+    lv_obj_set_style_border_width(canvas, 0, 0);
+    return canvas;
+}
+
+lv_obj_t* createStripedContainer(lv_obj_t* parent) {
+    return createStripedContainer(parent, DISPLAY_WIDTH, 40, 12);
 }
 
 lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected) {

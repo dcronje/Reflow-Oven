@@ -2,6 +2,7 @@
 #include "root_view.h"
 #include "lvgl.h"
 #include "controllers/main_menu_controller.h"
+#include "controllers/home_controller.h"
 // #include "controllers/calibration_controller.h"
 // #include "controllers/reflow_controller.h"
 
@@ -24,7 +25,8 @@ void RootView::init(lv_display_t* display) {
     controllerCollection->init(rootScreen, 0, 0, lv_obj_get_width(rootScreen), lv_obj_get_height(rootScreen));
     
     // Register controllers
-    controllerCollection->registerController("home", &MainMenuController::getInstance());
+    controllerCollection->registerController("home", &HomeController::getInstance());
+    controllerCollection->registerController("menu", &MainMenuController::getInstance());
     // controllerCollection->registerController("calibration", &CalibrationController::getInstance());
     // controllerCollection->registerController("reflow", &ReflowController::getInstance());
     // Add other controllers that may be missing

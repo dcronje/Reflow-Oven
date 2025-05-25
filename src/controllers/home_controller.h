@@ -15,9 +15,13 @@ public:
     void onEncoderPress() override;
     void onEncoderLongPress() override;
 
+    // Button event handlers
+    void onButton1Press() override;
+    void onButton2Press() override;
+    void onButton3Press() override;
+
 private:
     CyberpunkLayout* layout = nullptr;
-    int selectedIndex = 0;
     bool lightsOn = false;
     bool encoderPressed = false;
 
@@ -31,7 +35,6 @@ private:
     void selectProfile();
     
     // Visual feedback methods
-    void updateButtonFeedback();
     void showEncoderPressFeedback();
     void showButtonPressFeedback(int index);
 };

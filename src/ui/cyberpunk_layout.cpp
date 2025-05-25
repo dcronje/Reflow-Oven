@@ -1,3 +1,4 @@
+#include "lvgl.h"
 #include "cyberpunk_layout.h"
 #include "ui/cyberpunk_theme.h"
 #include "constants.h"
@@ -7,127 +8,253 @@ constexpr uint32_t ANIM_DURATION = 300;
 constexpr uint32_t ANIM_DELAY = 0;
 constexpr uint32_t TAG_PRESS_DURATION = 200;
 
-// Structure to hold auto-release animation data
-struct AutoReleaseData {
-    CyberpunkLayout* layout;
-    size_t index;
-    bool wasPressed;
-};
-
-// Animation callback for auto-release
-void CyberpunkLayout::autoReleaseAnimCb(lv_anim_t* a) {
-    AutoReleaseData* data = (AutoReleaseData*)a->user_data;
-    data->layout->setTagPressed(data->index, !data->wasPressed);
-    delete data;
-}
-
-// Animation callback for encoder auto-release
-void CyberpunkLayout::autoReleaseEncoderAnimCb(lv_anim_t* a) {
-    CyberpunkLayout* layout = (CyberpunkLayout*)a->user_data;
-    layout->setEncoderTagPressed(false);
-}
-
+// Event callback for button press/release
 CyberpunkLayout::CyberpunkLayout(lv_obj_t* parent) {
+    // --- Main container using grid layout ---
+    // This container fills the entire screen and contains 2 columns and 2 rows:
+    // Columns: [Main Content] [Encoder Tag]
+    // Rows:    [Main Content] [Bottom Tags]
+
     container = lv_obj_create(parent);
-    lv_obj_set_size(container, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-    lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_layout(container, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
+
+    // Column definitions:
+    // - First column: flexible (takes all remaining width)
+    // - Second column: sized to content (encoder tag)
+    static lv_coord_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+
+    // Row definitions:
+    // - First row: flexible (main content)
+    // - Second row: fixed height (bottom tag bar)
+    static lv_coord_t row_dsc[] = {LV_GRID_FR(1), 40, LV_GRID_TEMPLATE_LAST};
+
+    // Apply grid to container
+    lv_obj_set_grid_dsc_array(container, col_dsc, row_dsc);
+    lv_obj_set_layout(container, LV_LAYOUT_GRID);
+    lv_obj_set_size(container, lv_pct(100), lv_pct(100));
     lv_obj_set_style_pad_all(container, 0, 0);
-    lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_bg_color(container, CYBER_COLOR_BG, 0);
+    lv_obj_set_style_border_width(container, 0, 0);
+    lv_obj_set_style_radius(container, 0, 0);
+    lv_obj_clear_flag(container, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Content and encoder split
-    lv_obj_t* mainArea = lv_obj_create(container);
-    lv_obj_set_flex_grow(mainArea, 1);
-    lv_obj_set_layout(mainArea, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(mainArea, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(mainArea, 0, 0);
-    lv_obj_clear_flag(mainArea, LV_OBJ_FLAG_SCROLLABLE);
-
-    contentArea = lv_obj_create(mainArea);
-    lv_obj_set_size(contentArea, DISPLAY_WIDTH - 40, DISPLAY_HEIGHT - 50);
+    // --- Content Area (top-left grid cell) ---
+    contentArea = lv_obj_create(container);
+    lv_obj_set_grid_cell(contentArea, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_STRETCH, 0, 1);
     lv_obj_set_style_bg_color(contentArea, CYBER_COLOR_BG, 0);
     lv_obj_set_style_border_width(contentArea, 0, 0);
+    lv_obj_set_style_radius(contentArea, 0, 0);
+    lv_obj_set_style_pad_all(contentArea, 10, 0); // Inner padding for content widgets
+    lv_obj_clear_flag(contentArea, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Bottom bar with equal spacing for tags
-    bottomBar = lv_obj_create(mainArea);
-    lv_obj_set_height(bottomBar, 40);
-    lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(bottomBar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // --- Bottom Tag Bar (bottom-left grid cell) ---
+    bottomBar = lv_obj_create(container);
+    lv_obj_set_grid_cell(bottomBar, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_STRETCH, 1, 1);
     lv_obj_set_style_bg_color(bottomBar, CYBER_COLOR_BG, 0);
+    lv_obj_set_style_border_width(bottomBar, 0, 0);
+    lv_obj_set_style_radius(bottomBar, 0, 0);
+    lv_obj_set_style_pad_all(bottomBar, 0, 0);
     lv_obj_clear_flag(bottomBar, LV_OBJ_FLAG_SCROLLABLE);
-    
-    // Create three equal-width containers for tags
-    for(int i = 0; i < 3; i++) {
-        lv_obj_t* tagContainer = lv_obj_create(bottomBar);
-        lv_obj_set_flex_grow(tagContainer, 1);
-        lv_obj_set_style_bg_opa(tagContainer, 0, 0);
-        lv_obj_set_style_border_width(tagContainer, 0, 0);
-        lv_obj_set_style_pad_all(tagContainer, 0, 0);
-        tagContainers.push_back(tagContainer);
+
+    // Use horizontal flexbox layout for bottom tags
+    lv_obj_set_layout(bottomBar, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(bottomBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(bottomBar, 0, 0);
+    // --- Create Bottom Tag Buttons ---
+    for (int i = 0; i < 3; ++i) {
+        lv_obj_t* btn = lv_btn_create(bottomBar);
+        lv_obj_set_height(btn, 40);                 // Fixed height
+        lv_obj_set_flex_grow(btn, 1);               // Let it grow evenly to fill the space
+        lv_obj_set_style_bg_color(btn, CYBER_COLOR_BG, 0);
+        lv_obj_set_style_border_color(btn, CYBER_COLOR_ACCENT, 0);
+        lv_obj_set_style_border_width(btn, 1, 0);
+        lv_obj_set_style_radius(btn, 0, 0);
+        lv_obj_set_style_pad_all(btn, 0, 0);
+        lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+
+        // Label inside button
+        lv_obj_t* label = lv_label_create(btn);
+        lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_letter_space(label, -1, 0);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_center(label); // Center inside the button
+
+        tagContainers.push_back(btn);
+        tagLabels.push_back(label);
     }
 
-    // Encoder tag (vertical)
-    encoderTag = lv_label_create(container);
-    lv_label_set_text(encoderTag, "MENU");
-    lv_obj_set_style_text_color(encoderTag, CYBER_COLOR_ACCENT, 0);
-    lv_obj_set_style_text_font(encoderTag, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_transform_rotation(encoderTag, 900, 0); // rotate 90 degrees (900 = 90.0 degrees)
-    lv_obj_align(encoderTag, LV_ALIGN_RIGHT_MID, -5, 0);
+    // --- Encoder Tag Column (Right Side) ---
+    encoderTagContainer = lv_obj_create(container);
+        lv_obj_set_grid_cell(
+        encoderTagContainer,
+        LV_GRID_ALIGN_STRETCH, 1, 1,  // Column 1, span 1 column
+        LV_GRID_ALIGN_STRETCH, 0, 1   // Row 0 only (same as content area)
+    );
+    lv_obj_set_width(encoderTagContainer, 30); // Narrow vertical strip
+    lv_obj_set_style_bg_color(encoderTagContainer, CYBER_COLOR_BG, 0);
+    lv_obj_set_style_border_color(encoderTagContainer, CYBER_COLOR_ACCENT, 0);
+    lv_obj_set_style_border_width(encoderTagContainer, 1, 0);
+    lv_obj_set_style_radius(encoderTagContainer, 0, 0);
     
-    // Initialize all tags as hidden
-    setBottomTagsVisible(false);
-    setEncoderTagVisible(false);
+    lv_obj_clear_flag(encoderTagContainer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_layout(encoderTagContainer, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(encoderTagContainer, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(encoderTagContainer, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_set_style_pad_all(encoderTagContainer, 0, 0);
+    lv_obj_set_style_pad_top(encoderTagContainer, 0, 0);
+    lv_obj_set_style_pad_bottom(encoderTagContainer, 0, 0);
+    lv_obj_set_style_pad_left(encoderTagContainer, -40, 0);
+    lv_obj_set_style_pad_right(encoderTagContainer, 0, 0);
+
+    lv_obj_set_style_margin_all(encoderTagContainer, 0, 0);
+    lv_obj_set_style_margin_top(encoderTagContainer, 0, 0);
+    lv_obj_set_style_margin_bottom(encoderTagContainer, 0, 0);
+
+    lv_obj_set_style_pad_row(encoderTagContainer, 0, 0);
+    lv_obj_set_style_pad_column(encoderTagContainer, 0, 0);
+
+    // --- Default Encoder Label Text Rendered Vertically ---
+    std::string defaultText = "MENU";
+    for (char c : defaultText) {
+        std::string s(1, c);
+        lv_obj_t* chLabel = lv_label_create(encoderTagContainer);
+        lv_obj_remove_style_all(chLabel);
+        lv_label_set_text(chLabel, s.c_str());
+        
+        lv_obj_set_style_text_align(chLabel, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(chLabel, LV_LABEL_LONG_CLIP);  // Prevent wrapping
+        lv_obj_set_align(chLabel, LV_ALIGN_CENTER); 
+
+        // Force label to a fixed size
+        lv_obj_set_width(chLabel, 20);
+        lv_obj_set_height(chLabel, LV_SIZE_CONTENT);
+
+        // Absolute zero spacing
+        lv_obj_set_style_pad_all(chLabel, 0, 0);
+        lv_obj_set_style_pad_top(chLabel, 0, 0);
+        lv_obj_set_style_pad_bottom(chLabel, 0, 0);
+        lv_obj_set_style_pad_left(chLabel, 0, 0);
+        lv_obj_set_style_pad_right(chLabel, 0, 0);
+
+        lv_obj_set_style_margin_all(chLabel, 0, 0);
+        lv_obj_set_style_margin_top(chLabel, 0, 0);
+        lv_obj_set_style_margin_bottom(chLabel, 0, 0);
+        lv_obj_set_style_margin_left(chLabel, 0, 0);
+        lv_obj_set_style_margin_right(chLabel, 0, 0);
+
+        // Text formatting
+        lv_obj_set_style_text_align(chLabel, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(chLabel, CYBER_COLOR_ACCENT, 0);
+        lv_obj_set_style_text_font(chLabel, &lv_font_montserrat_14, 0);
+
+        // Optional debug border to confirm spacing visually
+        // lv_obj_set_style_border_width(chLabel, 1, 0);
+        // lv_obj_set_style_border_color(chLabel, lv_color_hex(0xFF00FF), 0);
+
+        encoderCharLabels.push_back(chLabel);
+    }
+
+
+    // Make tags visible initially
+    setBottomTagsVisible(true);
+    setEncoderTagVisible(true);
 }
+
+
+
 
 CyberpunkLayout::~CyberpunkLayout() {
     if (container) lv_obj_del(container);
 }
 
 void CyberpunkLayout::setBottomTags(const std::vector<std::string>& tags) {
-    // Clear existing tags
-    for(auto& label : tagLabels) {
-        if(label) lv_obj_del(label);
-    }
-    tagLabels.clear();
-    
-    // Create new tags (up to 3)
+    // Update existing tag labels
     for(size_t i = 0; i < std::min(tags.size(), size_t(3)); i++) {
-        lv_obj_t* label = lv_obj_create(tagContainers[i]);
-        lv_label_set_text(label, tags[i].c_str());
-        lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
-        lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
-        lv_obj_center(label);
-        tagLabels.push_back(label);
+        if(i < tagLabels.size() && tagLabels[i]) {
+            lv_label_set_text(tagLabels[i], tags[i].c_str());
+            lv_obj_clear_flag(tagContainers[i], LV_OBJ_FLAG_HIDDEN);
+        }
     }
     
     // Hide any unused containers
     for(size_t i = tags.size(); i < 3; i++) {
-        lv_obj_add_flag(tagContainers[i], LV_OBJ_FLAG_HIDDEN);
+        if(i < tagContainers.size()) {
+            lv_obj_add_flag(tagContainers[i], LV_OBJ_FLAG_HIDDEN);
+        }
     }
 }
 
 void CyberpunkLayout::setBottomTagsVisible(bool visible) {
     for(auto& container : tagContainers) {
+        if (container == nullptr) continue;
         if(visible) {
             lv_obj_clear_flag(container, LV_OBJ_FLAG_HIDDEN);
-            // Animate in
-            lv_obj_set_style_translate_y(container, 20, 0);
+            lv_obj_set_style_opa(container, LV_OPA_COVER, 0);
+        } else {
+            lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_style_opa(container, 0, 0);
-            
+        }
+    }
+}
+
+void CyberpunkLayout::setEncoderTag(const std::string& tag, bool showScrollIcon) {
+    std::string display = tag;
+    if (showScrollIcon) {
+        display += " ↑↓";  // You can replace this with simpler characters if needed
+    }
+
+    // Clear existing labels
+    for (lv_obj_t* label : encoderCharLabels) {
+        if (label) {
+            lv_obj_del(label);
+        }
+    }
+    encoderCharLabels.clear();
+
+    // Create a new label per character
+    for (char c : display) {
+        std::string ch(1, c);
+        lv_obj_t* chLabel = lv_label_create(encoderTagContainer);
+        lv_label_set_text(chLabel, ch.c_str());
+        lv_obj_set_style_text_color(chLabel, CYBER_COLOR_ACCENT, 0);
+        lv_obj_set_style_text_font(chLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_align(chLabel, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_clear_flag(chLabel, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_pad_all(chLabel, 0, 0);
+        lv_obj_set_width(chLabel, LV_SIZE_CONTENT);
+        encoderCharLabels.push_back(chLabel);
+    }
+
+    // Re-align the container just in case
+    lv_obj_mark_layout_as_dirty(encoderTagContainer);
+}
+
+
+void CyberpunkLayout::setEncoderTagVisible(bool visible) {
+    if (!encoderTagContainer) return;
+
+    for (lv_obj_t* label : encoderCharLabels) {
+        if (!label) continue;
+        if (visible) {
+            lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_translate_x(label, 20, 0);
+            lv_obj_set_style_opa(label, 0, 0);
+
             lv_anim_t a;
             lv_anim_init(&a);
-            lv_anim_set_var(&a, container);
+            lv_anim_set_var(&a, label);
             lv_anim_set_values(&a, 20, 0);
             lv_anim_set_time(&a, ANIM_DURATION);
             lv_anim_set_delay(&a, ANIM_DELAY);
-            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_y);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_x);
             lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
             lv_anim_start(&a);
-            
+
             lv_anim_t b;
             lv_anim_init(&b);
-            lv_anim_set_var(&b, container);
+            lv_anim_set_var(&b, label);
             lv_anim_set_values(&b, 0, LV_OPA_COVER);
             lv_anim_set_time(&b, ANIM_DURATION);
             lv_anim_set_delay(&b, ANIM_DELAY);
@@ -135,23 +262,22 @@ void CyberpunkLayout::setBottomTagsVisible(bool visible) {
             lv_anim_set_path_cb(&b, lv_anim_path_ease_out);
             lv_anim_start(&b);
         } else {
-            // Animate out
             lv_anim_t a;
             lv_anim_init(&a);
-            lv_anim_set_var(&a, container);
+            lv_anim_set_var(&a, label);
             lv_anim_set_values(&a, 0, 20);
             lv_anim_set_time(&a, ANIM_DURATION);
             lv_anim_set_delay(&a, ANIM_DELAY);
-            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_y);
+            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_x);
             lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
             lv_anim_set_ready_cb(&a, [](lv_anim_t* a) {
                 lv_obj_add_flag((lv_obj_t*)a->var, LV_OBJ_FLAG_HIDDEN);
             });
             lv_anim_start(&a);
-            
+
             lv_anim_t b;
             lv_anim_init(&b);
-            lv_anim_set_var(&b, container);
+            lv_anim_set_var(&b, label);
             lv_anim_set_values(&b, LV_OPA_COVER, 0);
             lv_anim_set_time(&b, ANIM_DURATION);
             lv_anim_set_delay(&b, ANIM_DELAY);
@@ -162,142 +288,124 @@ void CyberpunkLayout::setBottomTagsVisible(bool visible) {
     }
 }
 
-void CyberpunkLayout::setEncoderTag(const std::string& tag, bool showScrollIcon) {
-    std::string display = tag;
-    if (showScrollIcon) display += " ↑↓";
-    lv_label_set_text(encoderTag, display.c_str());
-}
-
-void CyberpunkLayout::setEncoderTagVisible(bool visible) {
-    if(visible) {
-        lv_obj_clear_flag(encoderTag, LV_OBJ_FLAG_HIDDEN);
-        // Animate in from right
-        lv_obj_set_style_translate_x(encoderTag, 20, 0);
-        lv_obj_set_style_opa(encoderTag, 0, 0);
-        
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, encoderTag);
-        lv_anim_set_values(&a, 20, 0);
-        lv_anim_set_time(&a, ANIM_DURATION);
-        lv_anim_set_delay(&a, ANIM_DELAY);
-        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_x);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_start(&a);
-        
-        lv_anim_t b;
-        lv_anim_init(&b);
-        lv_anim_set_var(&b, encoderTag);
-        lv_anim_set_values(&b, 0, LV_OPA_COVER);
-        lv_anim_set_time(&b, ANIM_DURATION);
-        lv_anim_set_delay(&b, ANIM_DELAY);
-        lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)lv_obj_set_style_opa);
-        lv_anim_set_path_cb(&b, lv_anim_path_ease_out);
-        lv_anim_start(&b);
-    } else {
-        // Animate out to right
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, encoderTag);
-        lv_anim_set_values(&a, 0, 20);
-        lv_anim_set_time(&a, ANIM_DURATION);
-        lv_anim_set_delay(&a, ANIM_DELAY);
-        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_translate_x);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
-        lv_anim_set_ready_cb(&a, [](lv_anim_t* a) {
-            lv_obj_add_flag((lv_obj_t*)a->var, LV_OBJ_FLAG_HIDDEN);
-        });
-        lv_anim_start(&a);
-        
-        lv_anim_t b;
-        lv_anim_init(&b);
-        lv_anim_set_var(&b, encoderTag);
-        lv_anim_set_values(&b, LV_OPA_COVER, 0);
-        lv_anim_set_time(&b, ANIM_DURATION);
-        lv_anim_set_delay(&b, ANIM_DELAY);
-        lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)lv_obj_set_style_opa);
-        lv_anim_set_path_cb(&b, lv_anim_path_ease_in);
-        lv_anim_start(&b);
-    }
-}
 
 void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duration_ms) {
-    if(index >= tagLabels.size()) return;
-    
-    lv_obj_t* label = tagLabels[index];
-    if(!label) return;
-    
-    if(pressed) {
-        // Visual feedback for press
-        lv_obj_set_style_text_color(label, lv_color_hex(0x00FF00), 0); // Use a bright green for highlight
-        lv_obj_set_style_transform_scale(label, 110, 0); // Slightly larger when pressed
-        
-        // If duration is specified, set up auto-release
-        if(duration_ms > 0) {
-            AutoReleaseData* data = new AutoReleaseData{this, index, pressed};
-            
-            lv_anim_t a;
-            lv_anim_init(&a);
-            lv_anim_set_var(&a, label);
-            lv_anim_set_time(&a, duration_ms);
-            lv_anim_set_user_data(&a, data);
-            lv_anim_set_ready_cb(&a, autoReleaseAnimCb);
-            lv_anim_start(&a);
+    if (index >= tagContainers.size()) return;
+
+    lv_obj_t* btn = tagContainers[index];
+    if (!btn) return;
+
+    lv_obj_t* label = lv_obj_get_child(btn, 0);
+
+    // Cancel existing animations or timers
+    lv_anim_del(btn, nullptr);
+    if (label) lv_anim_del(label, nullptr);
+
+    // Store pressed state changes inside an async callback to avoid rendering conflict
+    struct TagPressContext {
+        lv_obj_t* btn;
+        lv_obj_t* label;
+        bool pressed;
+        uint32_t duration;
+    };
+
+    TagPressContext* ctx = new TagPressContext{btn, label, pressed, duration_ms};
+
+    lv_async_call([](void* d) {
+        TagPressContext* c = static_cast<TagPressContext*>(d);
+        lv_obj_t* btn = c->btn;
+        lv_obj_t* label = c->label;
+
+        if (c->pressed) {
+            // Apply "pressed" visual style
+            lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_bg_color(btn, CYBER_COLOR_ACCENT, 0); 
+            lv_obj_set_style_border_width(btn, 2, 0);
+            if (label) {
+                lv_obj_set_style_text_color(label, CYBER_COLOR_BG, 0);
+            }
+
+            // Auto-release timer
+            uint32_t delay = c->duration > 0 ? c->duration : 50;
+            lv_timer_t* releaseTimer = lv_timer_create([](lv_timer_t* t) {
+                lv_obj_t* btn = static_cast<lv_obj_t*>(lv_timer_get_user_data(t));
+                if (!btn) return;
+
+                lv_obj_t* label = lv_obj_get_child(btn, 0);
+                lv_obj_set_style_bg_color(btn, CYBER_COLOR_BG, 0);
+                lv_obj_set_style_border_color(btn, CYBER_COLOR_ACCENT, 0);
+                lv_obj_set_style_border_width(btn, 1, 0);
+                if (label) {
+                    lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+                }
+
+                lv_timer_delete(t);
+            }, delay, btn);
+            lv_timer_set_repeat_count(releaseTimer, 1);
         } else {
-            // Animate back to normal state immediately
-            lv_anim_t a;
-            lv_anim_init(&a);
-            lv_anim_set_var(&a, label);
-            lv_anim_set_values(&a, 110, 100);
-            lv_anim_set_time(&a, TAG_PRESS_DURATION);
-            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_transform_scale);
-            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-            lv_anim_set_ready_cb(&a, [](lv_anim_t* a) {
-                lv_obj_set_style_text_color((lv_obj_t*)a->var, lv_color_hex(0x00FFFF), 0); // Use cyan for accent
-            });
-            lv_anim_start(&a);
+            // Apply "released" visual style immediately
+            lv_obj_set_style_bg_color(btn, CYBER_COLOR_BG, 0);
+            lv_obj_set_style_border_color(btn, CYBER_COLOR_ACCENT, 0);
+            lv_obj_set_style_border_width(btn, 1, 0);
+            if (label) {
+                lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+            }
         }
-    } else {
-        lv_obj_set_style_text_color(label, lv_color_hex(0x00FFFF), 0); // Use cyan for accent
-        lv_obj_set_style_transform_scale(label, 100, 0);
-    }
+
+        delete c;
+    }, ctx);
 }
 
 void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms) {
-    if(!encoderTag) return;
-    
-    if(pressed) {
-        // Visual feedback for press
-        lv_obj_set_style_text_color(encoderTag, lv_color_hex(0x00FF00), 0); // Use a bright green for highlight
-        lv_obj_set_style_transform_scale(encoderTag, 110, 0); // Slightly larger when pressed
-        
-        // If duration is specified, set up auto-release
-        if(duration_ms > 0) {
-            lv_anim_t a;
-            lv_anim_init(&a);
-            lv_anim_set_var(&a, encoderTag);
-            lv_anim_set_time(&a, duration_ms);
-            lv_anim_set_user_data(&a, this);
-            lv_anim_set_ready_cb(&a, autoReleaseEncoderAnimCb);
-            lv_anim_start(&a);
-        } else {
-            // Animate back to normal state immediately
-            lv_anim_t a;
-            lv_anim_init(&a);
-            lv_anim_set_var(&a, encoderTag);
-            lv_anim_set_values(&a, 110, 100);
-            lv_anim_set_time(&a, TAG_PRESS_DURATION);
-            lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_style_transform_scale);
-            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-            lv_anim_set_ready_cb(&a, [](lv_anim_t* a) {
-                lv_obj_set_style_text_color((lv_obj_t*)a->var, lv_color_hex(0x00FFFF), 0); // Use cyan for accent
-            });
-            lv_anim_start(&a);
+    if (!encoderTagContainer) return;
+
+    struct EncoderPressContext {
+        lv_obj_t* container;
+        bool pressed;
+        uint32_t duration;
+    };
+
+    auto* ctx = new EncoderPressContext{encoderTagContainer, pressed, duration_ms};
+
+    lv_async_call([](void* d) {
+        auto* c = static_cast<EncoderPressContext*>(d);
+        lv_obj_t* box = c->container;
+        lv_obj_t* label = lv_obj_get_child(box, 0); // Get the rotated label
+
+        if (!box || !label) {
+            delete c;
+            return;
         }
-    } else {
-        lv_obj_set_style_text_color(encoderTag, lv_color_hex(0x00FFFF), 0); // Use cyan for accent
-        lv_obj_set_style_transform_scale(encoderTag, 100, 0);
-    }
+
+        if (c->pressed) {
+            // Inverted style
+            lv_obj_set_style_bg_color(box, CYBER_COLOR_ACCENT, 0);
+            lv_obj_set_style_border_color(box, CYBER_COLOR_BG, 0);
+            lv_obj_set_style_border_width(box, 2, 0);
+            lv_obj_set_style_text_color(label, CYBER_COLOR_BG, 0);
+
+            // Auto-release
+            uint32_t delay = c->duration > 0 ? c->duration : 50;
+            lv_timer_t* t = lv_timer_create([](lv_timer_t* t) {
+                auto* box = static_cast<lv_obj_t*>(lv_timer_get_user_data(t));
+                if (!box) return;
+                lv_obj_t* label = lv_obj_get_child(box, 0);
+                lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
+                lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
+                lv_obj_set_style_border_width(box, 1, 0);
+                lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+                lv_timer_delete(t);
+            }, delay, box);
+            lv_timer_set_repeat_count(t, 1);
+        } else {
+            lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
+            lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
+            lv_obj_set_style_border_width(box, 1, 0);
+            lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+        }
+
+        delete c;
+    }, ctx);
 }
 
 lv_obj_t* CyberpunkLayout::getContentArea() {

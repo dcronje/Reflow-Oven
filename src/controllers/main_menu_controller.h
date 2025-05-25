@@ -19,14 +19,12 @@ public:
     void onEncoderLongPress() override;
 
     // UI action methods
-    void selectReflowCurve();
-    void startReflow();
-    void calibrate();
+    void viewCurves();
+    void calibrateSensors();
+    void calibrateDoor();
+    void calibrateOven();
     void openSettings();
-    void toggleDoor();
-    
-    // Method to refresh the door status button - can be called from the main thread
-    void refreshDoorStatusButton();
+    void returnToHome();
 
 private:
     MainMenuController() = default;

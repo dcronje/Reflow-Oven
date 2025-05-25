@@ -14,7 +14,7 @@ MainMenuController& MainMenuController::getInstance() {
 void MainMenuController::buildView(lv_obj_t* parent) {
     printf("Building Main Menu View\n");
 
-    CyberpunkTheme::init();
+    // CyberpunkTheme::init();
     buttons.clear();
     printf("Cleared buttons\n");
 
@@ -34,8 +34,9 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     // Title bar (fixed, not scrollable)
     lv_obj_t* title = CyberpunkTheme::createStripedTitleLabel(
         root, 
-        "REFLOW OVEN", 
+        "MAIN MENU", 
         DISPLAY_WIDTH, 
+        40,
         24,                        // Stripe thickness
         lv_color_white(),          // Text color
         lv_color_hex(0x000000),    // Outline color
@@ -73,23 +74,18 @@ void MainMenuController::buildView(lv_obj_t* parent) {
 
     // Menu items
     const char* items[] = {
-        "START REFLOW",
-        "SELECT PROFILE",
-        "CALIBRATE",
         "SETTINGS",
-        DoorService::getInstance().isFullyOpen() ? "CLOSE DOOR" : "OPEN DOOR"
+        "VIEW CURVES",
+        "CALIBRATE SENSORS",
+        "CALIBRATE DOOR",
+        "CALIBRATE OVEN",
+        "HOME"
     };
 
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         char indexStr[6]; // Buffer for "XX/XX" format
-        snprintf(indexStr, sizeof(indexStr), "%02d/%02d", i+1, 5); // Format as "01/05", "02/05", etc.
-        
-        // Use dynamic text for the door button (last item)
-        const char* buttonText = (i == 4) ? 
-            (DoorService::getInstance().isFullyOpen() ? "CLOSE DOOR" : "OPEN DOOR") : 
-            items[i];
-            
-        lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, buttonText, indexStr, i == selectedIndex);
+        snprintf(indexStr, sizeof(indexStr), "%02d/%02d", i+1, 6); // Updated to 6 total items
+        lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, items[i], indexStr, i == selectedIndex);
         buttons.push_back(btn);
     }
 
@@ -209,20 +205,19 @@ void MainMenuController::updateTimerCallback(lv_timer_t* timer) {
 }
 
 void MainMenuController::periodicUpdate() {
-    // This method is called periodically from the updateTimer
-    // Use it to safely update UI from the LVGL context
-    refreshDoorStatusButton();
+    // No periodic updates needed anymore
 }
 
 void MainMenuController::onEncoderPress() {
     BuzzerService::getInstance().playMediumTone(300);
 
     switch (selectedIndex) {
-        case 0: startReflow(); break;
-        case 1: selectReflowCurve(); break;
-        case 2: calibrate(); break;
-        case 3: openSettings(); break;
-        case 4: toggleDoor(); break;
+        case 0: openSettings(); break;
+        case 1: viewCurves(); break;
+        case 2: calibrateSensors(); break;
+        case 3: calibrateDoor(); break;
+        case 4: calibrateOven(); break;
+        case 5: returnToHome(); break;
     }
 }
 
@@ -250,27 +245,24 @@ void MainMenuController::onEncoderLongPress() {
     // No back action in main menu
 }
 
-void MainMenuController::selectReflowCurve() {
-    printf("Selecting reflow curve\n");
-    // navigateTo("profile-selection", 300, TransitionDirection::SLIDE_OUT_LEFT);
+void MainMenuController::viewCurves() {
+    printf("Viewing curves\n");
+    // navigateTo("curves", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
-void MainMenuController::startReflow() {
-    printf("Starting reflow\n");
-    
-    // Example: Post an event to the EventBus that reflow is starting
-    // Create event with no payload
-    Event event(EventTopics::REFLOW, EventNames::STARTED);
-    
-    // Post to the event bus
-    EventBus::getInstance().postEvent(event);
-    
-    // navigateTo("reflow", 300, TransitionDirection::SLIDE_OUT_LEFT);
+void MainMenuController::calibrateSensors() {
+    printf("Calibrating sensors\n");
+    // navigateTo("sensor-calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
-void MainMenuController::calibrate() {
-    printf("Calibrating\n");
-    // navigateTo("calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
+void MainMenuController::calibrateDoor() {
+    printf("Calibrating door\n");
+    // navigateTo("door-calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
+}
+
+void MainMenuController::calibrateOven() {
+    printf("Calibrating oven\n");
+    // navigateTo("oven-calibration", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::openSettings() {
@@ -278,83 +270,9 @@ void MainMenuController::openSettings() {
     // navigateTo("settings", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
-void MainMenuController::toggleDoor() {
-    // Toggle door position via DoorService
-    DoorService& doorService = DoorService::getInstance();
-    
-    if (doorService.isFullyOpen()) {
-        doorService.close(); // Close door
-    } else {
-        doorService.open();  // Open door
-    }
-    
-    // Door service will publish its own events about state changes
-    // The controller now only issues commands and doesn't publish events
-}
-
-void MainMenuController::refreshDoorStatusButton() {
-    // Make sure we have buttons and the door button exists (it's the last one)
-    if (buttons.empty() || buttons.size() < 5) return;
-    
-    // Update the text of the door button (last button)
-    lv_obj_t* doorBtn = buttons[4];
-    if (!lv_obj_is_valid(doorBtn)) return;
-    
-    // Get the label (should be first child)
-    lv_obj_t* label = lv_obj_get_child(doorBtn, 0);
-    if (!lv_obj_is_valid(label)) return;
-    
-    // Update the text based on current door state
-    const char* doorText = nullptr;
-    
-    // Determine the appropriate text based on door state
-    DoorService& doorService = DoorService::getInstance();
-    
-    // Get the direction of movement
-    DoorDirection direction = doorService.getDoorDirection();
-    bool isMoving = (direction != DoorDirection::NONE);
-    
-    if (isMoving) {
-        // Door is moving - show status with animation indicator
-        if (direction == DoorDirection::OPENING) {
-            doorText = "OPENING...";
-        } else {
-            doorText = "CLOSING...";
-        }
-        
-        // Add a visual indicator for motion - flash the button
-        static bool alternateColor = false;
-        alternateColor = !alternateColor;
-        
-        // Alternate between normal and warning colors
-        lv_color_t bgColor = alternateColor ? 
-            CYBER_COLOR_WARNING : // Warning color during animation
-            (doorBtn == buttons[selectedIndex] ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG);
-            
-        lv_obj_set_style_bg_color(doorBtn, bgColor, LV_PART_MAIN);
-    } else {
-        // Door is stationary
-        if (doorService.isFullyOpen()) {
-            doorText = "CLOSE DOOR";
-        } else if (doorService.isFullyClosed()) {
-            doorText = "OPEN DOOR";
-        } else {
-            // Door is stopped between open and closed
-            if (doorService.getPosition() > 50) {
-                doorText = "CLOSE DOOR"; // More open than closed
-            } else {
-                doorText = "OPEN DOOR";  // More closed than open
-            }
-        }
-        
-        // Restore normal button color based on selection state
-        bool isSelected = (doorBtn == buttons[selectedIndex]);
-        lv_color_t bgColor = isSelected ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
-        lv_obj_set_style_bg_color(doorBtn, bgColor, LV_PART_MAIN);
-    }
-    
-    // Update the button text
-    lv_label_set_text(label, doorText);
+void MainMenuController::returnToHome() {
+    printf("Returning to home\n");
+    navigateTo("home", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::willUnload() {

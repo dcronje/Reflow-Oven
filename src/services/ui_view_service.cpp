@@ -134,15 +134,15 @@ void UIViewService::uiTask(void* param) {
     UIViewService* service = static_cast<UIViewService*>(param);
     TickType_t lastTick = xTaskGetTickCount();
     
+    printf("UI Task started in UIViewService\n");
+    printf("Core: %d\n", get_core_num());
+    
     while (true) {
         // Update LVGL tick - this is for animations 
         lv_tick_inc(1);
         
         // Handle LVGL timers and drawing
         lv_timer_handler();
-        
-        // We no longer need to call rootView->update() periodically
-        // Instead, controllers will call invalidateView() when they need to be redrawn
         
         // Delay until next update (just handle LVGL core functionality)
         vTaskDelayUntil(&lastTick, pdMS_TO_TICKS(1));  // 1ms for smoother LVGL animations

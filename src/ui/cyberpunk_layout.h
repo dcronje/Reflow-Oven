@@ -1,7 +1,9 @@
 #pragma once
+
 #include "lvgl.h"
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 class CyberpunkLayout {
 public:
@@ -37,15 +39,14 @@ private:
     lv_obj_t* container = nullptr;
     lv_obj_t* contentArea = nullptr;
     lv_obj_t* bottomBar = nullptr;
+    lv_obj_t* encoderTagContainer = nullptr;
     lv_obj_t* encoderTag = nullptr;
     
     // Store tag containers and labels
     std::vector<lv_obj_t*> tagContainers;
     std::vector<lv_obj_t*> tagLabels;
+    std::vector<lv_obj_t*> encoderCharLabels;
 
-    // Animation callback for auto-release
-    static void autoReleaseAnimCb(lv_anim_t* a);
-    static void autoReleaseEncoderAnimCb(lv_anim_t* a);
 
     void updateBottomTags(const std::vector<std::string>& tags);
 };
