@@ -18,60 +18,36 @@ public:
     bool dirty = false;
 
     void animateTransition(Controller* from, Controller* to, uint32_t duration, TransitionDirection direction) {
-        if (!to || !container) return;
+        if (from) {
+            from->setState(Controller::State::TEARDOWN);
+            from->viewWillUnload();
+        }
 
-        lv_obj_t* oldView = from ? from->getView() : nullptr;
-
-        // If no transition or nothing to animate, just replace
-        if (direction == TransitionDirection::NONE || !oldView) {
-            if (from) from->willUnload();
-            lv_obj_clean(container);
-            to->render(container);
-            to->didAppear();
+        if (!to || !container) {
+            printf("ERROR: Invalid transition - to: %p, container: %p\n", (void*)to, (void*)container);
             return;
         }
 
-        // Render new view off-screen for animation
+        // Simple direct view swap without animation
+        lv_obj_clean(container);
         to->render(container);
+        
         lv_obj_t* newView = to->getView();
-
-        switch (direction) {
-            case TransitionDirection::SLIDE_IN_LEFT:
-                lv_obj_set_x(newView, -lv_obj_get_width(container));
-                break;
-            case TransitionDirection::SLIDE_OUT_LEFT:
-                lv_obj_set_x(newView, 0); // animate old out, new stays
-                break;
-            case TransitionDirection::FADE:
-                lv_obj_set_style_opa(newView, LV_OPA_TRANSP, 0);
-                break;
-            default:
-                break;
+        if (!newView) {
+            printf("ERROR: New view is null after render\n");
+            return;
         }
-
-        // Setup animation
-        lv_anim_t anim;
-        lv_anim_init(&anim);
-        lv_anim_set_time(&anim, duration);
-
-        if (direction == TransitionDirection::SLIDE_IN_LEFT) {
-            lv_anim_set_var(&anim, newView);
-            lv_anim_set_exec_cb(&anim, setXPosition);
-            lv_anim_set_values(&anim, -lv_obj_get_width(container), 0);
-        } else if (direction == TransitionDirection::SLIDE_OUT_LEFT && oldView) {
-            lv_anim_set_var(&anim, oldView);
-            lv_anim_set_exec_cb(&anim, setXPosition);
-            lv_anim_set_values(&anim, 0, -lv_obj_get_width(container));
-        } else if (direction == TransitionDirection::FADE) {
-            lv_anim_set_var(&anim, newView);
-            lv_anim_set_exec_cb(&anim, setOpacity);
-            lv_anim_set_values(&anim, LV_OPA_TRANSP, LV_OPA_COVER);
+        
+        // Verify the view is properly attached to container
+        lv_obj_t* parent = lv_obj_get_parent(newView);
+        if (parent != container) {
+            printf("ERROR: View parent mismatch - view: %p, container: %p\n", (void*)parent, (void*)container);
         }
-
-        lv_anim_start(&anim);
-
-        if (from) from->willUnload();
-        to->didAppear();
+        
+        if (to) {
+            to->setState(Controller::State::ACTIVE);
+            to->viewDidAppear();
+        }
     }
 };
 
@@ -80,10 +56,21 @@ ControllerCollection::~ControllerCollection() = default;
 
 void ControllerCollection::init(lv_obj_t* parent, int x, int y, int width, int height) {
     impl->container = lv_obj_create(parent);
+    if (!impl->container) {
+        printf("ERROR: Failed to create container\n");
+        return;
+    }
+    
     lv_obj_remove_style_all(impl->container);
     lv_obj_set_pos(impl->container, x, y);
     lv_obj_set_size(impl->container, width, height);
     lv_obj_set_scrollbar_mode(impl->container, LV_SCROLLBAR_MODE_OFF);
+    
+    // Verify container is properly attached to parent
+    lv_obj_t* containerParent = lv_obj_get_parent(impl->container);
+    if (containerParent != parent) {
+        printf("ERROR: Container parent mismatch - container: %p, parent: %p\n", (void*)containerParent, (void*)parent);
+    }
 }
 
 void ControllerCollection::registerController(const std::string& id, Controller* controller) {
@@ -93,10 +80,15 @@ void ControllerCollection::registerController(const std::string& id, Controller*
 
 void ControllerCollection::navigateTo(const std::string& id, uint32_t duration, TransitionDirection direction) {
     auto it = impl->controllers.find(id);
-    if (it == impl->controllers.end()) return;
+    if (it == impl->controllers.end()) {
+        printf("ERROR: Controller '%s' not found\n", id.c_str());
+        return;
+    }
 
     Controller* next = it->second;
-    if (impl->activeController == next) return;
+    if (impl->activeController == next) {
+        return; // Already on this controller
+    }
 
     impl->animateTransition(impl->activeController, next, duration, direction);
     impl->activeController = next;

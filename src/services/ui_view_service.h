@@ -7,6 +7,10 @@
 #include <memory>
 #include "ui/root_view.h"
 #include "core/encoder_events_interface.h"
+#include "pico/stdlib.h"
+#include "hardware/pwm.h"
+#include "semphr.h"
+#include <functional>
 
 // System function commands
 #define ST7789_NOP      0x00  // No Operation
@@ -97,6 +101,8 @@ enum class EncoderEvent {
     LONG_PRESS
 };
 
+class EncoderEventHandler;
+
 class UIViewService {
 public:
     static UIViewService& getInstance();
@@ -164,4 +170,9 @@ private:
     int slice_num;
     int channel;
     float currentBrightness = 1.0f;
+
+    SemaphoreHandle_t lvglMutex;  // Mutex for LVGL operations
+    
+    // Helper method to safely execute LVGL operations
+    bool executeLvglOperation(std::function<void()> operation);
 };

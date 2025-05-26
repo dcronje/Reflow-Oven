@@ -289,7 +289,7 @@ void CyberpunkLayout::setEncoderTagVisible(bool visible) {
 }
 
 
-void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duration_ms) {
+void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duration_ms, AnimationCallback callback) {
     if (index >= tagContainers.size()) return;
 
     lv_obj_t* btn = tagContainers[index];
@@ -307,9 +307,10 @@ void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duratio
         lv_obj_t* label;
         bool pressed;
         uint32_t duration;
+        AnimationCallback callback;
     };
 
-    TagPressContext* ctx = new TagPressContext{btn, label, pressed, duration_ms};
+    TagPressContext* ctx = new TagPressContext{btn, label, pressed, duration_ms, std::move(callback)};
 
     lv_async_call([](void* d) {
         TagPressContext* c = static_cast<TagPressContext*>(d);
@@ -328,10 +329,11 @@ void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duratio
             // Auto-release timer
             uint32_t delay = c->duration > 0 ? c->duration : 50;
             lv_timer_t* releaseTimer = lv_timer_create([](lv_timer_t* t) {
-                lv_obj_t* btn = static_cast<lv_obj_t*>(lv_timer_get_user_data(t));
-                if (!btn) return;
+                TagPressContext* ctx = static_cast<TagPressContext*>(lv_timer_get_user_data(t));
+                if (!ctx) return;
 
-                lv_obj_t* label = lv_obj_get_child(btn, 0);
+                lv_obj_t* btn = ctx->btn;
+                lv_obj_t* label = ctx->label;
                 lv_obj_set_style_bg_color(btn, CYBER_COLOR_BG, 0);
                 lv_obj_set_style_border_color(btn, CYBER_COLOR_ACCENT, 0);
                 lv_obj_set_style_border_width(btn, 1, 0);
@@ -339,8 +341,14 @@ void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duratio
                     lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
                 }
 
+                // Call the callback if provided
+                if (ctx->callback) {
+                    ctx->callback();
+                }
+
                 lv_timer_delete(t);
-            }, delay, btn);
+                delete ctx;
+            }, delay, c);
             lv_timer_set_repeat_count(releaseTimer, 1);
         } else {
             // Apply "released" visual style immediately
@@ -350,22 +358,28 @@ void CyberpunkLayout::setTagPressed(size_t index, bool pressed, uint32_t duratio
             if (label) {
                 lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
             }
-        }
 
-        delete c;
+            // Call the callback if provided
+            if (c->callback) {
+                c->callback();
+            }
+
+            delete c;
+        }
     }, ctx);
 }
 
-void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms) {
+void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms, AnimationCallback callback) {
     if (!encoderTagContainer) return;
 
     struct EncoderPressContext {
         lv_obj_t* container;
         bool pressed;
         uint32_t duration;
+        AnimationCallback callback;
     };
 
-    auto* ctx = new EncoderPressContext{encoderTagContainer, pressed, duration_ms};
+    auto* ctx = new EncoderPressContext{encoderTagContainer, pressed, duration_ms, std::move(callback)};
 
     lv_async_call([](void* d) {
         auto* c = static_cast<EncoderPressContext*>(d);
@@ -386,25 +400,39 @@ void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms) {
 
             // Auto-release
             uint32_t delay = c->duration > 0 ? c->duration : 50;
-            lv_timer_t* t = lv_timer_create([](lv_timer_t* t) {
-                auto* box = static_cast<lv_obj_t*>(lv_timer_get_user_data(t));
-                if (!box) return;
+            lv_timer_t* t = lv_timer_create([](lv_timer_t* timer) {
+                auto* ctx = static_cast<EncoderPressContext*>(lv_timer_get_user_data(timer));
+                if (!ctx) return;
+
+                lv_obj_t* box = ctx->container;
                 lv_obj_t* label = lv_obj_get_child(box, 0);
                 lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
                 lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
                 lv_obj_set_style_border_width(box, 1, 0);
                 lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
-                lv_timer_delete(t);
-            }, delay, box);
+
+                // Call the callback if provided
+                if (ctx->callback) {
+                    ctx->callback();
+                }
+
+                lv_timer_delete(timer);
+                delete ctx;
+            }, delay, c);
             lv_timer_set_repeat_count(t, 1);
         } else {
             lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
             lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
             lv_obj_set_style_border_width(box, 1, 0);
             lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
-        }
 
-        delete c;
+            // Call the callback if provided
+            if (c->callback) {
+                c->callback();
+            }
+
+            delete c;
+        }
     }, ctx);
 }
 

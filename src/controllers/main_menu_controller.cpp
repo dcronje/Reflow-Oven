@@ -12,18 +12,30 @@ MainMenuController& MainMenuController::getInstance() {
 }
 
 void MainMenuController::buildView(lv_obj_t* parent) {
-    printf("Building Main Menu View\n");
+    if (!parent || !lv_obj_is_valid(parent)) {
+        printf("ERROR: Invalid parent in buildView\n");
+        return;
+    }
 
-    // CyberpunkTheme::init();
     buttons.clear();
-    printf("Cleared buttons\n");
 
     // Root container (fills screen, vertical layout)
-    lv_obj_t* root = lv_obj_create(lv_scr_act());
+    lv_obj_t* root = lv_obj_create(parent);
+    if (!root) {
+        printf("ERROR: Failed to create root container\n");
+        return;
+    }
+    
+    // Verify root container is properly attached to parent
+    lv_obj_t* rootParent = lv_obj_get_parent(root);
+    if (rootParent != parent) {
+        printf("ERROR: Root container parent mismatch - container: %p, parent: %p\n", (void*)rootParent, (void*)parent);
+        return;
+    }
+    
     lv_obj_set_size(root, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
-    // Remove all gaps between flex items
     lv_obj_set_style_pad_row(root, 0, 0);
     lv_obj_set_style_pad_column(root, 0, 0);
     lv_obj_set_scrollbar_mode(root, LV_SCROLLBAR_MODE_OFF);
@@ -42,12 +54,22 @@ void MainMenuController::buildView(lv_obj_t* parent) {
         lv_color_hex(0x000000),    // Outline color
         2                          // Outline thickness
     );
+    if (!title) {
+        printf("ERROR: Failed to create title bar\n");
+        return;
+    }
+    
     lv_obj_clear_flag(title, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_margin_all(title, 0, 0);
     lv_obj_set_style_pad_all(title, 0, 0);
 
     // Scrollable button list container
     menu = lv_obj_create(root);
+    if (!menu) {
+        printf("ERROR: Failed to create menu container\n");
+        return;
+    }
+    
     lv_obj_remove_style_all(menu);
     lv_obj_set_width(menu, DISPLAY_WIDTH);
     lv_obj_set_flex_grow(menu, 1);
@@ -84,8 +106,19 @@ void MainMenuController::buildView(lv_obj_t* parent) {
 
     for (int i = 0; i < 6; ++i) {
         char indexStr[6]; // Buffer for "XX/XX" format
-        snprintf(indexStr, sizeof(indexStr), "%02d/%02d", i+1, 6); // Updated to 6 total items
+        snprintf(indexStr, sizeof(indexStr), "%02d/%02d", i+1, 6);
+        
         lv_obj_t* btn = CyberpunkTheme::createCyberpunkButton(menu, items[i], indexStr, i == selectedIndex);
+        if (!btn) {
+            printf("ERROR: Failed to create button %d\n", i);
+            continue;
+        }
+        
+        if (!lv_obj_is_valid(btn)) {
+            printf("ERROR: Button %d is invalid\n", i);
+            continue;
+        }
+        
         buttons.push_back(btn);
     }
 
@@ -93,21 +126,46 @@ void MainMenuController::buildView(lv_obj_t* parent) {
     updateButtonFocus(false);
 }
 
-
 void MainMenuController::updateButtonFocus(bool animated) {
-    if (!menu || buttons.empty()) return;
+    if (!menu || !lv_obj_is_valid(menu)) {
+        printf("ERROR: Invalid menu in updateButtonFocus\n");
+        return;
+    }
+    
+    if (buttons.empty()) {
+        printf("ERROR: No buttons in updateButtonFocus\n");
+        return;
+    }
 
     // Clamp selection
     if (selectedIndex < 0 || selectedIndex >= static_cast<int>(buttons.size())) {
         selectedIndex = 0;
     }
 
+    // Verify all buttons are valid before proceeding
+    for (size_t i = 0; i < buttons.size(); ++i) {
+        lv_obj_t* btn = buttons[i];
+        if (!btn || !lv_obj_is_valid(btn)) {
+            printf("ERROR: Button %zu is invalid, rebuilding view\n", i);
+            if (rootView) {
+                buildView(rootView);
+            }
+            return;
+        }
+    }
+
     for (int i = 0; i < static_cast<int>(buttons.size()); ++i) {
         lv_obj_t* btn = buttons[i];
-        if (!lv_obj_is_valid(btn)) continue;
+        
+        // Double check validity since we're in a loop
+        if (!btn || !lv_obj_is_valid(btn)) {
+            printf("ERROR: Button %d became invalid during update!\n", i);
+            continue;
+        }
 
         bool isSelected = (i == selectedIndex);
 
+        // Update button styles
         lv_color_t bgColor     = isSelected ? CYBER_COLOR_ACCENT : CYBER_COLOR_BG;
         lv_color_t textColor   = isSelected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
         lv_color_t borderColor = isSelected ? CYBER_COLOR_BG : CYBER_COLOR_ACCENT;
@@ -117,12 +175,27 @@ void MainMenuController::updateButtonFocus(bool animated) {
 
         // Update child labels (assumes 2 children)
         uint32_t childCount = lv_obj_get_child_cnt(btn);
+        
+        // Verify we have the expected number of children
+        if (childCount != 2) {
+            printf("WARNING: Button %d has unexpected number of children (%u)\n", i, childCount);
+            continue;
+        }
+        
         for (uint32_t j = 0; j < childCount; ++j) {
             lv_obj_t* child = lv_obj_get_child(btn, j);
-            if (!lv_obj_is_valid(child)) continue;
+            
+            if (!child || !lv_obj_is_valid(child)) {
+                printf("ERROR: Button %d child %u is invalid!\n", i, j);
+                continue;
+            }
 
-            // Apply style to both labels
-            lv_obj_set_style_text_color(child, textColor, LV_PART_MAIN);
+            // Verify child is a label before setting text color
+            if (lv_obj_has_class(child, &lv_label_class)) {
+                lv_obj_set_style_text_color(child, textColor, LV_PART_MAIN);
+            } else {
+                printf("WARNING: Button %d child %u is not a label!\n", i, j);
+            }
         }
 
         if (isSelected) {
@@ -136,8 +209,6 @@ void MainMenuController::updateButtonFocus(bool animated) {
         }
     }
 }
-
-
 
 MainMenuController::~MainMenuController() {
     // Clean up resources
@@ -271,30 +342,75 @@ void MainMenuController::openSettings() {
 }
 
 void MainMenuController::returnToHome() {
-    printf("Returning to home\n");
-    navigateTo("home", 300, TransitionDirection::SLIDE_OUT_LEFT);
+    printf("MainMenuController::returnToHome\n");
+    navigateToSafe("home", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
-void MainMenuController::willUnload() {
-    printf("MainMenuController willUnload\n");
+void MainMenuController::viewDidLoad() {
+    printf("MainMenuController::viewDidLoad\n");
+}
+
+void MainMenuController::viewWillAppear() {
+    printf("MainMenuController::viewWillAppear\n");
+    startEventTask();
+    startUpdateTimer();
+}
+
+void MainMenuController::viewDidAppear() {
+    printf("MainMenuController::viewDidAppear\n");
+}
+
+void MainMenuController::viewWillDisappear() {
+    printf("MainMenuController::viewWillDisappear\n");
+    stopEventTask();
+    stopUpdateTimer();
+}
+
+void MainMenuController::viewDidDisappear() {
+    printf("MainMenuController::viewDidDisappear\n");
+}
+
+void MainMenuController::viewWillUnload() {
+    printf("MainMenuController::viewWillUnload\n");
+    stopEventTask();
+    stopUpdateTimer();
     
-    // Clean up timers
-    if (updateTimer) {
-        lv_timer_del(updateTimer);
-        updateTimer = nullptr;
-    }
-    
-    // Clean up the event task
-    if (eventTaskHandle != nullptr) {
-        vTaskDelete(eventTaskHandle);
-        eventTaskHandle = nullptr;
-    }
-    
-    // Clean up UI
     if (menu) {
         lv_obj_del(menu);
         menu = nullptr;
     }
-    buttons.clear();
-    selectedIndex = 0;
+}
+
+void MainMenuController::startEventTask() {
+    if (eventTaskHandle == nullptr) {
+        xTaskCreate(
+            eventProcessingTask,
+            "MenuEventTask",
+            256,
+            this,
+            1,
+            &eventTaskHandle
+        );
+    }
+}
+
+void MainMenuController::stopEventTask() {
+    if (eventTaskHandle != nullptr) {
+        vTaskDelete(eventTaskHandle);
+        eventTaskHandle = nullptr;
+    }
+}
+
+void MainMenuController::startUpdateTimer() {
+    if (updateTimer == nullptr) {
+        updateTimer = lv_timer_create(updateTimerCallback, 500, this);
+    }
+}
+
+void MainMenuController::stopUpdateTimer() {
+    if (updateTimer != nullptr) {
+        lv_timer_pause(updateTimer);
+        lv_timer_del(updateTimer);
+        updateTimer = nullptr;
+    }
 }

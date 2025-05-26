@@ -8,102 +8,139 @@ HomeController& HomeController::getInstance() {
     return instance;
 }
 
+HomeController::~HomeController() {
+    // Clean up resources
+    if (updateTimer) {
+        lv_timer_del(updateTimer);
+        updateTimer = nullptr;
+    }
+}
+
+void HomeController::startUpdateTimer() {
+    if (updateTimer == nullptr) {
+        updateTimer = lv_timer_create(updateTimerCallback, 500, this);
+    }
+}
+
+void HomeController::stopUpdateTimer() {
+    if (updateTimer != nullptr) {
+        lv_timer_pause(updateTimer);
+        lv_timer_del(updateTimer);
+        updateTimer = nullptr;
+    }
+}
+
+void HomeController::updateTimerCallback(lv_timer_t* timer) {
+    void* userData = lv_timer_get_user_data(timer);
+    HomeController* controller = static_cast<HomeController*>(userData);
+    if (controller) {
+        controller->periodicUpdate();
+    }
+}
+
+void HomeController::periodicUpdate() {
+    // Update UI elements that need periodic refresh
+    updateTags();
+}
+
 void HomeController::buildView(lv_obj_t* parent) {
-    printf("Building Home View\n");
+    if (!parent || !lv_obj_is_valid(parent)) {
+        printf("ERROR: Invalid parent object in buildView\n");
+        return;
+    }
     
     // Initialize the theme
     CyberpunkTheme::init();
     
-    layout = new CyberpunkLayout(lv_scr_act());
-    printf("Layout created\n");
+    // Create layout using the provided parent
+    layout = new CyberpunkLayout(parent);
+    if (!layout) {
+        printf("ERROR: Failed to create layout\n");
+        return;
+    }
+
+    // Ensure the parent is properly sized
+    lv_obj_set_size(parent, lv_pct(100), lv_pct(100));
+    lv_obj_set_style_pad_all(parent, 0, 0);
+    lv_obj_set_style_margin_all(parent, 0, 0);
+    lv_obj_set_style_border_width(parent, 0, 0);
+    lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     // Encoder tag (vertical)
     layout->setEncoderTag("MENU", false);
     layout->setEncoderTagVisible(true);
-    printf("Encoder tag set\n");
-
-    printf("About to call updateTags\n");
+    
     updateTags();
-    printf("updateTags returned\n");
     
     // Sample content
     lv_obj_t* content = layout->getContentArea();
-    printf("Content area pointer: %p\n", (void*)content);
-    if (content == nullptr) {
-        printf("ERROR: Content area is null!\n");
-        return;
-    }
-    if (!lv_obj_is_valid(content)) {
-        printf("ERROR: Content area is not a valid LVGL object!\n");
+    if (!content || !lv_obj_is_valid(content)) {
+        printf("ERROR: Invalid content area in buildView\n");
         return;
     }
     
     lv_obj_t* label = lv_label_create(content);
-    if (label == nullptr) {
-        printf("ERROR: Failed to create label!\n");
+    if (!label) {
+        printf("ERROR: Failed to create label\n");
         return;
     }
-    printf("Label created successfully\n");
     
     lv_label_set_text(label, "System Status:\nTEMP OK\nDOOR CLOSED");
     lv_obj_center(label);
-    printf("Label text set and centered\n");
 }
 
 void HomeController::updateTags() {
-    printf("updateTags: Starting\n");
+    if (state != State::ACTIVE) return;
+    
     std::vector<std::string> tags = {
         DoorService::getInstance().isFullyOpen() ? "CLOSE DOOR" : "OPEN DOOR",
         "START",
         lightsOn ? "LIGHTS OFF" : "LIGHTS ON"
     };
-    printf("updateTags: Tags created, calling setBottomTags\n");
     layout->setBottomTags(tags);
-    printf("updateTags: setBottomTags completed\n");
-}
-
-void HomeController::showButtonPressFeedback(int index) {
-    layout->setTagPressed(index, true, BUTTON_PRESS_DURATION);
-}
-
-void HomeController::showEncoderPressFeedback() {
-    layout->setEncoderTagPressed(true, ENCODER_PRESS_DURATION);
 }
 
 void HomeController::onButton1Press() {
+    if (state != State::ACTIVE) return;
     lv_async_call([](void* user_data) {
         HomeController* self = static_cast<HomeController*>(user_data);
-        self->showButtonPressFeedback(0);
-        self->toggleDoor();
-        self->updateTags();
+        self->layout->setTagPressed(0, true, BUTTON_PRESS_DURATION, [self]() {
+            self->toggleDoor();
+            self->updateTags();
+        });
     }, this);
 }
 
 void HomeController::onButton2Press() {
+    if (state != State::ACTIVE) return;
     lv_async_call([](void* user_data) {
         HomeController* self = static_cast<HomeController*>(user_data);
-        self->showButtonPressFeedback(1);
-        self->selectProfile();
-        self->updateTags();
+        self->layout->setTagPressed(1, true, BUTTON_PRESS_DURATION, [self]() {
+            self->selectProfile();
+            self->updateTags();
+        });
     }, this);
 }
 
 void HomeController::onButton3Press() {
+    if (state != State::ACTIVE) return;
     lv_async_call([](void* user_data) {
         HomeController* self = static_cast<HomeController*>(user_data);
-        self->showButtonPressFeedback(2);
-        self->toggleLights();
-        self->updateTags();
+        self->layout->setTagPressed(2, true, BUTTON_PRESS_DURATION, [self]() {
+            self->toggleLights();
+            self->updateTags();
+        });
     }, this);
 }
 
 void HomeController::onEncoderPress() {
+    if (state != State::ACTIVE) return;
     lv_async_call([](void* user_data) {
         BuzzerService::getInstance().playMediumTone(100);
         HomeController* self = static_cast<HomeController*>(user_data);
-        self->showEncoderPressFeedback();
-        self->navigateTo("menu");
-        self->updateTags();
+        self->layout->setEncoderTagPressed(true, ENCODER_PRESS_DURATION, [self]() {
+            self->navigateTo("menu");
+        });
     }, this);
 }
 
@@ -116,9 +153,10 @@ void HomeController::onEncoderDown() {
 }
 
 void HomeController::onEncoderLongPress() {
-    // Navigate to main menu or settings
-    printf("Long press: open main menu or settings\n");
-    showEncoderPressFeedback();
+    if (state != State::ACTIVE) return;
+    layout->setEncoderTagPressed(true, ENCODER_PRESS_DURATION, [this]() {
+        // Add any long press actions here if needed
+    });
 }
 
 void HomeController::toggleDoor() {
@@ -135,13 +173,40 @@ void HomeController::selectProfile() {
     printf("Profile selection screen...\n");
 }
 
-void HomeController::willUnload() {
+void HomeController::openMenu() {
+    printf("HomeController::openMenu\n");
+    navigateToSafe("menu", 300, TransitionDirection::SLIDE_IN_LEFT);
+}
+
+void HomeController::viewDidLoad() {
+    printf("HomeController::viewDidLoad\n");
+}
+
+void HomeController::viewWillAppear() {
+    printf("HomeController::viewWillAppear\n");
+    startUpdateTimer();
+}
+
+void HomeController::viewDidAppear() {
+    printf("HomeController::viewDidAppear\n");
+    updateTags();
+}
+
+void HomeController::viewWillDisappear() {
+    printf("HomeController::viewWillDisappear\n");
+    stopUpdateTimer();
+}
+
+void HomeController::viewDidDisappear() {
+    printf("HomeController::viewDidDisappear\n");
+}
+
+void HomeController::viewWillUnload() {
+    printf("HomeController::viewWillUnload\n");
+    stopUpdateTimer();
+    
     if (layout) {
         delete layout;
         layout = nullptr;
     }
-}
-
-void HomeController::didAppear() {
-    updateTags();
 }

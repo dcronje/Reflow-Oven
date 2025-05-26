@@ -137,12 +137,25 @@ void UIViewService::uiTask(void* param) {
     printf("UI Task started in UIViewService\n");
     printf("Core: %d\n", get_core_num());
     
+    uint32_t updateCount = 0;
+    uint32_t lastLogTime = 0;
+    
     while (true) {
         // Update LVGL tick - this is for animations 
         lv_tick_inc(1);
         
         // Handle LVGL timers and drawing
         lv_timer_handler();
+        
+        // Log every 1000 updates (roughly every second)
+        // updateCount++;
+        // uint32_t currentTime = to_ms_since_boot(get_absolute_time());
+        // if (currentTime - lastLogTime >= 1000) {
+        //     printf("LVGL Task: %lu updates/sec, Free heap: %u bytes\n", 
+        //            updateCount, xPortGetFreeHeapSize());
+        //     updateCount = 0;
+        //     lastLogTime = currentTime;
+        // }
         
         // Delay until next update (just handle LVGL core functionality)
         vTaskDelayUntil(&lastTick, pdMS_TO_TICKS(1));  // 1ms for smoother LVGL animations

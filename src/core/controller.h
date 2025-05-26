@@ -6,16 +6,45 @@
 
 // Forward declarations
 class ControllerCollection;
+class ControllerCollectionImpl;
 
 class Controller {
+public:
+    enum class State {
+        UNINITIALIZED,
+        ACTIVE,
+        TEARDOWN
+    };
+
 protected:
     lv_obj_t* rootView = nullptr;
     ControllerCollection* controllerCollection = nullptr;
+    State state = State::UNINITIALIZED;
 
 public:
     virtual ~Controller() = default;
 
+    // Only ControllerCollection and its implementation can set the state
+    friend class ControllerCollection;
+    friend class ControllerCollectionImpl;
+    void setState(State newState) { 
+        printf("[Controller] State transition: %s -> %s\n", 
+            state == State::UNINITIALIZED ? "UNINITIALIZED" :
+            state == State::ACTIVE ? "ACTIVE" : "TEARDOWN",
+            newState == State::UNINITIALIZED ? "UNINITIALIZED" :
+            newState == State::ACTIVE ? "ACTIVE" : "TEARDOWN");
+        state = newState; 
+    }
+
     void render(lv_obj_t* parent);
+
+    // Lifecycle methods
+    virtual void viewDidLoad() {}  // Called after view is created and attached
+    virtual void viewWillAppear() {}  // Called before view becomes visible
+    virtual void viewDidAppear() {}   // Called after view becomes visible
+    virtual void viewWillDisappear() {}  // Called before view is hidden
+    virtual void viewDidDisappear() {}   // Called after view is hidden
+    virtual void viewWillUnload() {}     // Called before view is destroyed
 
     // Responsible for creating the view if needed
     virtual void buildView(lv_obj_t* parent) = 0;
@@ -23,11 +52,9 @@ public:
     // Return the root LVGL object of this controller
     lv_obj_t* getView() const { return rootView; }
 
-    // Called when this controller is about to be hidden or removed
-    virtual void willUnload() {}
-
-    // Called when this controller becomes visible
-    virtual void didAppear() {}
+    // Safe navigation method
+    void navigateToSafe(const std::string& controllerId, uint32_t duration = 300, 
+                       TransitionDirection direction = TransitionDirection::SLIDE_IN_LEFT);
 
     // Optional input event handlers
     virtual void onEncoderUp() {}
@@ -52,6 +79,9 @@ public:
         controllerCollection = collection;
     }
 
-    void navigateTo(const std::string& controllerId, uint32_t duration = 300, TransitionDirection direction = TransitionDirection::SLIDE_IN_LEFT);
+    void navigateTo(const std::string& controllerId, uint32_t duration = 300, 
+                   TransitionDirection direction = TransitionDirection::SLIDE_IN_LEFT);
     void invalidateView();
+
+    State getState() const { return state; }
 };

@@ -280,8 +280,18 @@ lv_obj_t* createStripedContainer(lv_obj_t* parent) {
 }
 
 lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const char* edgeLabel, bool selected) {
+    // Remove debug print
+    // printf("createCyberpunkButton: Creating button with text '%s' and label '%s'\n", mainText, edgeLabel);
+    
     const int buttonWidth = 300;
     lv_obj_t* btn = lv_obj_create(parent);
+    if (!btn) {
+        printf("ERROR: Failed to create button object\n");
+        return nullptr;
+    }
+    // Remove debug print
+    // printf("createCyberpunkButton: Button created at %p\n", (void*)btn);
+    
     lv_obj_set_size(btn, buttonWidth, 50);
     lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -301,19 +311,57 @@ lv_obj_t* createCyberpunkButton(lv_obj_t* parent, const char* mainText, const ch
     lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
 
     // Main label (centered text)
+    // Remove debug print
+    // printf("createCyberpunkButton: Creating main label\n");
     lv_obj_t* label = lv_label_create(btn);
+    if (!label) {
+        printf("ERROR: Failed to create main label\n");
+        lv_obj_del(btn);
+        return nullptr;
+    }
+    // Remove debug print
+    // printf("createCyberpunkButton: Main label created at %p\n", (void*)label);
+    
     lv_label_set_text(label, mainText);
     lv_obj_set_style_text_color(label, textColor, LV_PART_MAIN);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_20, LV_PART_MAIN);
     lv_obj_center(label);
 
     // Edge label (bottom-right corner)
+    // Remove debug print
+    // printf("createCyberpunkButton: Creating edge label\n");
     lv_obj_t* corner = lv_label_create(btn);
+    if (!corner) {
+        printf("ERROR: Failed to create edge label\n");
+        lv_obj_del(btn);
+        return nullptr;
+    }
+    // Remove debug print
+    // printf("createCyberpunkButton: Edge label created at %p\n", (void*)corner);
+    
     lv_label_set_text(corner, edgeLabel);
     lv_obj_set_style_text_color(corner, textColor, LV_PART_MAIN);
     lv_obj_set_style_text_font(corner, &lv_font_montserrat_14, LV_PART_MAIN);
     lv_obj_align(corner, LV_ALIGN_BOTTOM_RIGHT, -5, -3);
 
+    // Verify button and its children
+    // Remove debug print
+    // printf("createCyberpunkButton: Verifying button hierarchy\n");
+    if (!lv_obj_is_valid(btn)) {
+        printf("ERROR: Button is invalid\n");
+        return nullptr;
+    }
+    
+    uint32_t childCount = lv_obj_get_child_cnt(btn);
+    // Remove debug print
+    // printf("createCyberpunkButton: Button has %u children\n", childCount);
+    
+    if (childCount != 2) {
+        printf("ERROR: Button has unexpected number of children (%u)\n", childCount);
+    }
+
+    // Remove debug print
+    // printf("createCyberpunkButton: Button creation complete\n");
     return btn;
 }
 

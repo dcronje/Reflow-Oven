@@ -10,8 +10,13 @@ public:
     static MainMenuController& getInstance();
 
     void buildView(lv_obj_t* parent) override;
+    void viewDidLoad() override;
+    void viewWillAppear() override;
+    void viewDidAppear() override;
+    void viewWillDisappear() override;
+    void viewDidDisappear() override;
+    void viewWillUnload() override;
     void init() override;
-    void willUnload() override;
 
     void onEncoderPress() override;
     void onEncoderUp() override;
@@ -40,6 +45,11 @@ private:
     TaskHandle_t eventTaskHandle = nullptr;
     
     void updateButtonFocus(bool animated = true);
+    
+    void startEventTask();
+    void stopEventTask();
+    void startUpdateTimer();
+    void stopUpdateTimer();
     
     // Event processing task
     static void eventProcessingTask(void* pvParameters);

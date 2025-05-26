@@ -17,22 +17,39 @@ RootView::RootView() : rootScreen(nullptr), topBar(nullptr), sideBar(nullptr) {}
 void RootView::init(lv_display_t* display) {
     // Create root screen associated with the provided display
     lv_display_set_default(display);
+    
     rootScreen = lv_obj_create(nullptr);  // this becomes a new screen root
-    lv_scr_load(rootScreen);              // this screen is now visible
+    if (!rootScreen) {
+        printf("ERROR: Failed to create root screen\n");
+        return;
+    }
+    
+    // Verify screen is properly created
+    if (!lv_obj_is_valid(rootScreen)) {
+        printf("ERROR: Root screen is invalid\n");
+        return;
+    }
+    
+    // Load the screen
+    lv_scr_load(rootScreen);
+    
+    // Verify screen is active
+    lv_obj_t* activeScreen = lv_scr_act();
+    if (activeScreen != rootScreen) {
+        printf("ERROR: Screen mismatch - active: %p, root: %p\n", (void*)activeScreen, (void*)rootScreen);
+        return;
+    }
 
     // Initialize controller collection with the content area as the parent
     controllerCollection = std::make_unique<ControllerCollection>();
-    controllerCollection->init(rootScreen, 0, 0, lv_obj_get_width(rootScreen), lv_obj_get_height(rootScreen));
+    
+    int screenWidth = lv_obj_get_width(rootScreen);
+    int screenHeight = lv_obj_get_height(rootScreen);
+    controllerCollection->init(rootScreen, 0, 0, screenWidth, screenHeight);
     
     // Register controllers
     controllerCollection->registerController("home", &HomeController::getInstance());
     controllerCollection->registerController("menu", &MainMenuController::getInstance());
-    // controllerCollection->registerController("calibration", &CalibrationController::getInstance());
-    // controllerCollection->registerController("reflow", &ReflowController::getInstance());
-    // Add other controllers that may be missing
-    // Note: There is a reference to "profile-selection" in MainMenuController that may need its controller registered
-    // controllerCollection->registerController("profile-selection", &ProfileSelectionController::getInstance());
-    // controllerCollection->registerController("settings", &SettingsController::getInstance());
     
     // Start with the home screen
     controllerCollection->navigateTo("home");
