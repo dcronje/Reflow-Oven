@@ -3,6 +3,7 @@
 #include "core/controller.h"
 #include "ui/cyberpunk_layout.h"
 #include <vector>
+#include <utility>
 
 class HomeController : public Controller {
 public:
@@ -37,6 +38,7 @@ private:
     HomeController& operator=(const HomeController&) = delete;
 
     void updateTags();
+    void updateStatusDisplay();
     void toggleDoor();
     void toggleLights();
     void selectProfile();
@@ -55,4 +57,8 @@ private:
     // Button press feedback duration
     static constexpr uint32_t BUTTON_PRESS_DURATION = 200;
     static constexpr uint32_t ENCODER_PRESS_DURATION = 150;
+
+    // Status display members
+    lv_obj_t* statusDisplay = nullptr;
+    std::vector<std::pair<lv_obj_t*, lv_obj_t*>> statusLabels;  // pairs of (label, value) objects
 };

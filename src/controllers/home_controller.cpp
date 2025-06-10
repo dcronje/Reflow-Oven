@@ -2,6 +2,8 @@
 #include "services/door_service.h"
 #include "services/buzzer_service.h"
 #include "ui/cyberpunk_theme.h"
+#include "services/sensor_service.h"
+#include "services/temperature_control_service.h"
 
 HomeController& HomeController::getInstance() {
     static HomeController instance;
@@ -41,6 +43,7 @@ void HomeController::updateTimerCallback(lv_timer_t* timer) {
 void HomeController::periodicUpdate() {
     // Update UI elements that need periodic refresh
     updateTags();
+    updateStatusDisplay();
 }
 
 void HomeController::buildView(lv_obj_t* parent) {
@@ -72,21 +75,68 @@ void HomeController::buildView(lv_obj_t* parent) {
     
     updateTags();
     
-    // Sample content
+    // Create status display container
     lv_obj_t* content = layout->getContentArea();
     if (!content || !lv_obj_is_valid(content)) {
         printf("ERROR: Invalid content area in buildView\n");
         return;
     }
-    
-    lv_obj_t* label = lv_label_create(content);
-    if (!label) {
-        printf("ERROR: Failed to create label\n");
+
+    // Create a container for the status display
+    lv_obj_t* statusContainer = lv_obj_create(content);
+    if (!statusContainer) {
+        printf("ERROR: Failed to create status container\n");
         return;
     }
-    
-    lv_label_set_text(label, "System Status:\nTEMP OK\nDOOR CLOSED");
-    lv_obj_center(label);
+
+    // Style the container
+    lv_obj_set_size(statusContainer, lv_pct(90), lv_pct(80));
+    lv_obj_center(statusContainer);
+    lv_obj_set_style_bg_color(statusContainer, CYBER_COLOR_BG, 0);
+    lv_obj_set_style_border_color(statusContainer, CYBER_COLOR_ACCENT, 0);
+    lv_obj_set_style_border_width(statusContainer, 2, 0);
+    lv_obj_set_style_pad_all(statusContainer, 20, 0);
+    lv_obj_set_flex_flow(statusContainer, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(statusContainer, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(statusContainer, 10, 0);
+
+    // Create status labels
+    auto createStatusLabel = [statusContainer](const char* label, const char* value) {
+        lv_obj_t* container = lv_obj_create(statusContainer);
+        lv_obj_set_size(container, lv_pct(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(container, 0, 0);
+        lv_obj_set_style_pad_all(container, 0, 0);
+        lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(container, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        // Label
+        lv_obj_t* labelObj = lv_label_create(container);
+        lv_label_set_text(labelObj, label);
+        lv_obj_set_style_text_color(labelObj, CYBER_COLOR_ACCENT, 0);
+        lv_obj_set_style_text_font(labelObj, &lv_font_montserrat_16, 0);
+
+        // Value
+        lv_obj_t* valueObj = lv_label_create(container);
+        lv_label_set_text(valueObj, value);
+        lv_obj_set_style_text_color(valueObj, CYBER_COLOR_TEXT, 0);
+        lv_obj_set_style_text_font(valueObj, &lv_font_montserrat_16, 0);
+
+        return std::make_pair(labelObj, valueObj);
+    };
+
+    // Create all status labels and store their value labels for updates
+    statusLabels = {
+        createStatusLabel("STATUS:", "READY"),
+        createStatusLabel("AMBIENT TEMP:", "---°C"),
+        createStatusLabel("OVEN TEMP:", "---°C"),
+        createStatusLabel("RELAY TEMP:", "---°C"),
+        createStatusLabel("RELAY FAN:", "---%"),
+        createStatusLabel("DOOR POSITION:", "---%")
+    };
+
+    // Store the container for updates
+    statusDisplay = statusContainer;
 }
 
 void HomeController::updateTags() {
@@ -209,4 +259,37 @@ void HomeController::viewWillUnload() {
         delete layout;
         layout = nullptr;
     }
+}
+
+void HomeController::updateStatusDisplay() {
+    if (!statusDisplay || !lv_obj_is_valid(statusDisplay)) return;
+
+    // Get current sensor readings
+    const SensorState& sensorState = SensorService::getInstance().getState();
+    const TemperatureState& tempState = TemperatureControlService::getInstance().getState();
+    const DoorService& doorService = DoorService::getInstance();
+    
+    // Update status (READY/FAULT)
+    const char* status = sensorState.hasError ? "FAULT" : "READY";
+    lv_label_set_text(statusLabels[0].second, status);
+    
+    // Update temperatures
+    char tempStr[16];
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", sensorState.ambientTemp);
+    lv_label_set_text(statusLabels[1].second, tempStr);  // Ambient temp
+    
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", sensorState.currentTemp);
+    lv_label_set_text(statusLabels[2].second, tempStr);  // Oven temp
+    
+    snprintf(tempStr, sizeof(tempStr), "%.1f°C", sensorState.ssrTemp);
+    lv_label_set_text(statusLabels[3].second, tempStr);  // Relay temp
+    
+    // Update fan speed
+    snprintf(tempStr, sizeof(tempStr), "%d%%", tempState.coolingPower);
+    lv_label_set_text(statusLabels[4].second, tempStr);  // Relay fan
+    
+    // Update door position
+    uint8_t doorPos = doorService.getPosition();
+    snprintf(tempStr, sizeof(tempStr), "%d%%", doorPos);
+    lv_label_set_text(statusLabels[5].second, tempStr);  // Door position
 }

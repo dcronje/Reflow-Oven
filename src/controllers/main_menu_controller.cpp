@@ -314,6 +314,7 @@ void MainMenuController::onEncoderDown() {
 
 void MainMenuController::onEncoderLongPress() {
     // No back action in main menu
+    navigateToSafe("home", 300, TransitionDirection::SLIDE_OUT_LEFT);
 }
 
 void MainMenuController::viewCurves() {
@@ -357,7 +358,10 @@ void MainMenuController::viewWillAppear() {
 }
 
 void MainMenuController::viewDidAppear() {
-    printf("MainMenuController::viewDidAppear\n");
+    // Reset selection to top item
+    selectedIndex = 0;
+    
+    updateButtonFocus(true);
 }
 
 void MainMenuController::viewWillDisappear() {

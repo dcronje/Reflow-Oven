@@ -377,16 +377,16 @@ void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms, A
         bool pressed;
         uint32_t duration;
         AnimationCallback callback;
+        std::vector<lv_obj_t*>* labels;  // Add pointer to labels vector
     };
 
-    auto* ctx = new EncoderPressContext{encoderTagContainer, pressed, duration_ms, std::move(callback)};
+    auto* ctx = new EncoderPressContext{encoderTagContainer, pressed, duration_ms, std::move(callback), &encoderCharLabels};
 
     lv_async_call([](void* d) {
         auto* c = static_cast<EncoderPressContext*>(d);
         lv_obj_t* box = c->container;
-        lv_obj_t* label = lv_obj_get_child(box, 0); // Get the rotated label
 
-        if (!box || !label) {
+        if (!box) {
             delete c;
             return;
         }
@@ -396,7 +396,13 @@ void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms, A
             lv_obj_set_style_bg_color(box, CYBER_COLOR_ACCENT, 0);
             lv_obj_set_style_border_color(box, CYBER_COLOR_BG, 0);
             lv_obj_set_style_border_width(box, 2, 0);
-            lv_obj_set_style_text_color(label, CYBER_COLOR_BG, 0);
+            
+            // Update all character labels
+            for (lv_obj_t* label : *c->labels) {
+                if (label) {
+                    lv_obj_set_style_text_color(label, CYBER_COLOR_BG, 0);
+                }
+            }
 
             // Auto-release
             uint32_t delay = c->duration > 0 ? c->duration : 50;
@@ -405,11 +411,16 @@ void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms, A
                 if (!ctx) return;
 
                 lv_obj_t* box = ctx->container;
-                lv_obj_t* label = lv_obj_get_child(box, 0);
                 lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
                 lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
                 lv_obj_set_style_border_width(box, 1, 0);
-                lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+                
+                // Update all character labels back to normal
+                for (lv_obj_t* label : *ctx->labels) {
+                    if (label) {
+                        lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+                    }
+                }
 
                 // Call the callback if provided
                 if (ctx->callback) {
@@ -424,7 +435,13 @@ void CyberpunkLayout::setEncoderTagPressed(bool pressed, uint32_t duration_ms, A
             lv_obj_set_style_bg_color(box, CYBER_COLOR_BG, 0);
             lv_obj_set_style_border_color(box, CYBER_COLOR_ACCENT, 0);
             lv_obj_set_style_border_width(box, 1, 0);
-            lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+            
+            // Update all character labels back to normal
+            for (lv_obj_t* label : *c->labels) {
+                if (label) {
+                    lv_obj_set_style_text_color(label, CYBER_COLOR_ACCENT, 0);
+                }
+            }
 
             // Call the callback if provided
             if (c->callback) {
